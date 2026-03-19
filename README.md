@@ -6,57 +6,41 @@ A multi-agent AI system for experimental physicists. Describe an unexplained phe
 
 ## Workflow
 
-```
-┌─────────────────────────────────────────────────────────┐
-│                    User Input                           │
-│         (phenomenon description + toolkit data)         │
-└───────────────────────┬─────────────────────────────────┘
-                        │
-          ┌─────────────▼──────────────┐
-          │      LITERATURE PHASE      │
-          │                            │
-          │  ┌────┐ ┌────┐ ┌────┐     │
-          │  │ L1 │ │ L2 │ │ L3 │     │  N parallel agents
-          │  └──┬─┘ └──┬─┘ └──┬─┘     │  (arxiv + Semantic Scholar)
-          │     └──────┼──────┘       │
-          │       ┌────▼────┐         │
-          │       │ Debate  │         │  Synthesis call
-          │       └────┬────┘         │
-          │       ┌────▼────┐         │
-          │       │  User   │◄────────┤  Approve or give feedback
-          │       └────┬────┘         │  (loops up to max_debate_rounds)
-          └────────────┼───────────────┘
-                       │ approved hypotheses
-          ┌────────────▼───────────────┐
-          │       FITTING PHASE        │
-          │                            │
-          │  per hypothesis:           │
-          │  ┌────┐ ┌────┐ ┌────┐     │
-          │  │ F1 │ │ F2 │ │ F3 │     │  M parallel agents
-          │  └──┬─┘ └──┬─┘ └──┬─┘     │  (lmfit + numpy/scipy)
-          │     └──────┼──────┘       │
-          │       ┌────▼────┐         │
-          │       │ Debate  │         │
-          │       └────┬────┘         │
-          │       ┌────▼────┐         │
-          │       │  User   │◄────────┤  Approve fit results
-          └────────────┼───────────────┘
-                       │
-          ┌────────────▼───────────────┐
-          │       REVIEW PHASE         │
-          │                            │
-          │  ┌────┐ ┌────┐ ┌────┐     │
-          │  │ R1 │ │ R2 │ │ R3 │     │  K parallel reviewer agents
-          │  └──┬─┘ └──┬─┘ └──┬─┘     │
-          │     └──────┼──────┘       │
-          │       ┌────▼────┐         │
-          │       │ Debate  │         │
-          │       └────┬────┘         │
-          └────────────┼───────────────┘
-                       │
-          ┌────────────▼───────────────┐
-          │        Final Report        │
-          └────────────────────────────┘
+```mermaid
+flowchart TD
+    Input(["📋 User Input\nphenomenon description + toolkit data"])
+
+    subgraph LIT ["① LITERATURE PHASE"]
+        direction TB
+        L["L1 · L2 · L3\nN parallel agents\narxiv + Semantic Scholar"]
+        LD["🔀 Debate\nsynthesis call"]
+        LU{"User approval"}
+        L --> LD --> LU
+        LU -->|"reject: add feedback"| L
+    end
+
+    subgraph FIT ["② FITTING PHASE  —  per approved hypothesis"]
+        direction TB
+        FT["toolkit check\n(request missing data from user)"]
+        F["F1 · F2 · F3\nM parallel agents\nlmfit + numpy/scipy"]
+        FD["🔀 Debate\nsynthesis call"]
+        FU{"User approval"}
+        FT --> F --> FD --> FU
+    end
+
+    subgraph REV ["③ REVIEW PHASE"]
+        direction TB
+        R["R1 · R2 · R3\nK parallel agents\ntheory validity + next experiments"]
+        RD["🔀 Debate\nfinal synthesis"]
+        R --> RD
+    end
+
+    Report(["📄 Final Report"])
+
+    Input --> LIT
+    LIT -->|"approved hypotheses"| FIT
+    FIT --> REV
+    REV --> Report
 ```
 
 Each phase fans out parallel agents, synthesizes their reports via a single debate call, then waits for your approval before proceeding.
