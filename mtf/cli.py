@@ -29,11 +29,11 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--debate-model", default="claude-opus-4-6")
     p.add_argument("--max-debate-rounds", type=int, default=3)
     p.add_argument(
-        "--images",
+        "--files",
         nargs="+",
         metavar="PATH",
         default=[],
-        help="Image files (plots, figures) to digest before analysis",
+        help="Input files to digest before analysis (images: PNG, JPG, GIF, WebP; documents: PDF)",
     )
     p.add_argument("--image-digest-model", default="claude-opus-4-6")
     return p
@@ -63,4 +63,4 @@ def main() -> None:
         image_digest_model=args.image_digest_model,
     )
     orchestrator = MTFOrchestrator(config=config)
-    asyncio.run(orchestrator.run(phenomenon, images=args.images or None))
+    asyncio.run(orchestrator.run(phenomenon, files=args.files or None))

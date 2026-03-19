@@ -24,10 +24,10 @@ class HumanInterface(ABC):
     @abstractmethod
     async def confirm(self, prompt: str) -> bool: ...
 
-    async def ask_for_images(self) -> list[str]:
-        """Prompt the user to optionally provide image file paths.
+    async def ask_for_files(self) -> list[str]:
+        """Prompt the user to optionally provide input file paths (images or PDFs).
 
-        Returns a (possibly empty) list of valid image path strings.
+        Returns a (possibly empty) list of valid file path strings.
         Default implementation returns an empty list; override in subclasses
         that support interactive input.
         """
@@ -50,16 +50,16 @@ class CLIInterface(HumanInterface):
     async def confirm(self, prompt: str) -> bool:
         return await asyncio.to_thread(Confirm.ask, f"[yellow]{prompt}[/yellow]")
 
-    async def ask_for_images(self) -> list[str]:
-        """Interactively ask the user for optional image file paths."""
-        has_images = await self.confirm(
-            "Do you have experimental images or plots to include?"
+    async def ask_for_files(self) -> list[str]:
+        """Interactively ask the user for optional input file paths (images or PDFs)."""
+        has_files = await self.confirm(
+            "Do you have experimental images, plots, or PDF documents to include?"
         )
-        if not has_images:
+        if not has_files:
             return []
 
         raw = await self.ask(
-            "Enter image file path(s) separated by spaces (PNG, JPG, GIF, WebP)"
+            "Enter file path(s) separated by spaces (PNG, JPG, GIF, WebP, PDF)"
         )
         paths: list[str] = []
         for token in raw.split():
@@ -69,6 +69,6 @@ class CLIInterface(HumanInterface):
             else:
                 await asyncio.to_thread(
                     self._console.print,
-                    f"[red]Warning: image not found and will be skipped: {p}[/red]",
+                    f"[red]Warning: file not found and will be skipped: {p}[/red]",
                 )
         return paths
