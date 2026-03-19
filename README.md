@@ -55,6 +55,20 @@ Images are digested first (phase ⓪): `ImageDigestAgent` uses Claude's vision A
 
 ---
 
+## Agents
+
+| Agent | Phase | API | Tools | Memory written | Description |
+|-------|-------|-----|-------|----------------|-------------|
+| `ImageDigestAgent` | ⓪ Pre-processing | `messages.create()` (multimodal) | — | `IMAGE_DATA` | Encodes each user image as base64 and calls the vision API to extract plot type, axis labels/units/scale, numerical data series, quantitative features, and annotations. Runs in parallel, one instance per image. |
+| `LiteratureAgent` | ① Literature | `sdk.query()` | arxiv search, Semantic Scholar | `LITERATURE` | Searches arxiv and Semantic Scholar for papers relevant to the phenomenon. Returns a structured report: phenomenon summary, cited papers, ranked hypotheses, and key equations. Spawns N parallel instances (default 3). |
+| `FittingAgent` | ② Fitting | `sdk.query()` | `run_fitting_code()` (exec sandbox) | `FIT_RESULT` | Given an approved hypothesis and toolkit data, writes and executes `lmfit`/`numpy`/`scipy` fitting code. Reports χ², reduced χ², best-fit parameters with uncertainties, and hypothesis support. Rate-limited by `asyncio.Semaphore`. |
+| `ReviewerAgent` | ③ Review | `sdk.query()` | — | `REVIEW` | Evaluates hypothesis validity against data and literature, identifies weaknesses and confounds, and proposes specific follow-up experiments to distinguish competing explanations. Spawns K parallel instances (default 3). |
+| `ToolBuilderAgent` | ② Fitting (on demand) | `sdk.query()` | — | `TOOLKIT_DIGEST` | Invoked when a fitting agent requests toolkit data that the user has not pre-registered. Parses raw user input (functions, CSVs, code snippets) into `data_items` and `model_items` dicts via LLM-generated `exec()` code, then registers them in `ToolkitRegistry`. |
+
+All agents except `ImageDigestAgent` extend `BaseAgent`, which prepends a formatted `SharedMemory` context block before every `sdk.query()` call so every agent sees prior debate summaries, image digests, and user feedback.
+
+---
+
 ## Installation
 
 **Requirements:** Python 3.11+, an Anthropic API key.
