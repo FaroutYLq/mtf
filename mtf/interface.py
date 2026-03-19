@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 from abc import ABC, abstractmethod
+from pathlib import Path
 
 from rich.console import Console
 from rich.markdown import Markdown
@@ -23,6 +24,15 @@ class HumanInterface(ABC):
     @abstractmethod
     async def confirm(self, prompt: str) -> bool: ...
 
+    async def ask_for_images(self) -> list[str]:
+        """Prompt the user to optionally provide image file paths.
+
+        Returns a (possibly empty) list of valid image path strings.
+        Default implementation returns an empty list; override in subclasses
+        that support interactive input.
+        """
+        return []
+
 
 class CLIInterface(HumanInterface):
     """Rich-based CLI interface."""
@@ -39,3 +49,26 @@ class CLIInterface(HumanInterface):
 
     async def confirm(self, prompt: str) -> bool:
         return await asyncio.to_thread(Confirm.ask, f"[yellow]{prompt}[/yellow]")
+
+    async def ask_for_images(self) -> list[str]:
+        """Interactively ask the user for optional image file paths."""
+        has_images = await self.confirm(
+            "Do you have experimental images or plots to include?"
+        )
+        if not has_images:
+            return []
+
+        raw = await self.ask(
+            "Enter image file path(s) separated by spaces (PNG, JPG, GIF, WebP)"
+        )
+        paths: list[str] = []
+        for token in raw.split():
+            p = Path(token.strip())
+            if p.exists():
+                paths.append(str(p))
+            else:
+                await asyncio.to_thread(
+                    self._console.print,
+                    f"[red]Warning: image not found and will be skipped: {p}[/red]",
+                )
+        return paths

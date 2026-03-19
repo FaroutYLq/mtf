@@ -4,13 +4,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project
 
-**mtf** (My Theorist Friend) — a multi-agent AI system for experimental physicists. Takes an unexplained experimental phenomenon as input and orchestrates parallel literature research, hypothesis fitting, and peer review via the Anthropic API and claude-agent-sdk.
+**mtf** (My Theorist Friend) — a multi-agent AI system for experimental physicists. Takes an unexplained experimental phenomenon (text + optional images) as input and orchestrates image digestion, parallel literature research, hypothesis fitting, and peer review via the Anthropic API and claude-agent-sdk.
 
 ## Technology
 
 - **Language:** Python 3.11+
 - **Agent framework:** `claude-agent-sdk` (wraps `sdk.query()` coroutines)
-- **Anthropic API:** direct `anthropic.Anthropic().messages.create()` for debate synthesis
+- **Anthropic API:** direct `anthropic.Anthropic().messages.create()` for debate synthesis and image digestion (multimodal)
 - **Fitting:** `lmfit`, `numpy`, `scipy` — agent-generated code runs via `exec()` in a sandboxed namespace
 - **Literature search:** `arxiv`, `semanticscholar` packages
 - **CLI / UI:** `rich` (panels, prompts, markdown rendering)
@@ -30,6 +30,7 @@ mtf/
 ├── cli.py                  `mtf` CLI entry point (argparse)
 ├── agents/
 │   ├── base.py             BaseAgent — wraps sdk.query(), injects SharedMemory context
+│   ├── image_digest.py     ImageDigestAgent — Anthropic vision API, quantitative plot extraction
 │   ├── literature.py       LiteratureAgent — arxiv + Semantic Scholar tools
 │   ├── fitting.py          FittingAgent — generates + executes lmfit code
 │   └── reviewer.py         ReviewerAgent — theory validity + experiment suggestions
@@ -63,14 +64,18 @@ pytest tests/test_memory.py tests/test_debate.py tests/test_phases.py
 # All tests (network tests require internet)
 pytest
 
-# Run CLI
+# Run CLI (with optional images)
 mtf "Describe your phenomenon here"
+mtf "Describe your phenomenon here" --images plot1.png plot2.png
 
 # Run bundled example
 python examples/run_experiment.py
 ```
 
 ## Architecture Notes
+
+### Image Digestion
+`ImageDigestAgent` runs before all three phases. It encodes each user-supplied image as base64 and calls `anthropic.Anthropic().messages.create()` with a multimodal content block (image + text prompt). The system prompt instructs the model to extract: plot type, axis labels/units/scale, all data series as numerical arrays, key quantitative features (peaks, slopes, error bars, fit parameters), and embedded annotations. Results are stored as `MemoryKind.IMAGE_DATA` entries. All three agent types (`LiteratureAgent`, `FittingAgent`, `ReviewerAgent`) include `IMAGE_DATA` in their `extra_kinds` so extracted data appears in every agent's prompt context. Supported image formats: PNG, JPG, GIF, WebP.
 
 ### Shared Memory
 `SharedMemory` is a plain Python object passed by reference to every phase and agent. It is safe under asyncio's single-threaded event loop — no locks needed. `BaseAgent._build_prompt()` prepends a formatted context block before every `sdk.query()` call so agents always see prior debate summaries and user feedback.
@@ -91,6 +96,7 @@ Fitting agents are rate-limited by `asyncio.Semaphore(config.fitting_semaphore_l
 
 - All `HumanInterface` methods are async; never call `input()` directly.
 - `MemoryKind` values are the canonical tags — use them, do not invent string keys.
-- `ToolkitRegistry` is the only channel for user data into fitting agents; do not pass data through prompts directly.
+- `ToolkitRegistry` is the primary channel for structured user data into fitting agents; image-extracted numerical data flows through `MemoryKind.IMAGE_DATA` in agent prompts.
+- `ImageDigestAgent` uses `messages.create()` (not sdk.query()) — keep it that way; it needs multimodal content blocks that the agent-sdk does not expose.
 - `DebateEngine.synthesize()` is a plain API call, not an agent loop — keep it that way for speed.
 - `run_fitting_code()` uses `exec()` intentionally; do not replace with subprocess or a sandbox service without user approval.

@@ -39,6 +39,7 @@ class ReviewerAgent(BaseAgent):
                 MemoryKind.DEBATE,
                 MemoryKind.FIT_RESULT,
                 MemoryKind.USER_FEEDBACK,
+                MemoryKind.IMAGE_DATA,
             ),
         )
         self._memory.add(

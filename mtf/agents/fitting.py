@@ -43,7 +43,7 @@ class FittingAgent(BaseAgent):
         )
         response = await self._query(
             task,
-            extra_kinds=(MemoryKind.LITERATURE, MemoryKind.DEBATE),
+            extra_kinds=(MemoryKind.LITERATURE, MemoryKind.DEBATE, MemoryKind.IMAGE_DATA),
         )
         lines = [l.strip() for l in response.splitlines() if l.strip()]
         return lines
@@ -60,7 +60,7 @@ class FittingAgent(BaseAgent):
         )
         code = await self._query(
             task,
-            extra_kinds=(MemoryKind.LITERATURE, MemoryKind.DEBATE, MemoryKind.USER_FEEDBACK),
+            extra_kinds=(MemoryKind.LITERATURE, MemoryKind.DEBATE, MemoryKind.USER_FEEDBACK, MemoryKind.IMAGE_DATA),
         )
         # Strip markdown code fences if present
         if "```" in code:

@@ -28,6 +28,14 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--reviewer-model", default="claude-opus-4-6")
     p.add_argument("--debate-model", default="claude-opus-4-6")
     p.add_argument("--max-debate-rounds", type=int, default=3)
+    p.add_argument(
+        "--images",
+        nargs="+",
+        metavar="PATH",
+        default=[],
+        help="Image files (plots, figures) to digest before analysis",
+    )
+    p.add_argument("--image-digest-model", default="claude-opus-4-6")
     return p
 
 
@@ -52,6 +60,7 @@ def main() -> None:
         reviewer_model=args.reviewer_model,
         debate_model=args.debate_model,
         max_debate_rounds=args.max_debate_rounds,
+        image_digest_model=args.image_digest_model,
     )
     orchestrator = MTFOrchestrator(config=config)
-    asyncio.run(orchestrator.run(phenomenon))
+    asyncio.run(orchestrator.run(phenomenon, images=args.images or None))

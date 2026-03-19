@@ -17,6 +17,7 @@ class MTFConfig:
     fitting_model: str = "claude-opus-4-6"
     reviewer_model: str = "claude-opus-4-6"
     debate_model: str = "claude-opus-4-6"
+    image_digest_model: str = "claude-opus-4-6"
 
     # Debate loop controls
     max_debate_rounds: int = 3

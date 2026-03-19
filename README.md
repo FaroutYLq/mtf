@@ -8,7 +8,7 @@ A multi-agent AI system for experimental physicists. Describe an unexplained phe
 
 ```mermaid
 flowchart TD
-    Input(["📋 User Input\nphenomenon description + toolkit data"])
+    Input(["📋 User Input\nphenomenon description + images + toolkit data"])
 
     subgraph LIT ["① LITERATURE PHASE"]
         direction TB
@@ -37,13 +37,21 @@ flowchart TD
 
     Report(["📄 Final Report"])
 
-    Input --> LIT
+    subgraph IMG ["⓪ IMAGE DIGEST"]
+        direction TB
+        I["ImageDigestAgent\nClaude vision API\nparallel per image"]
+        IM["IMAGE_DATA\nin SharedMemory"]
+        I --> IM
+    end
+
+    Input --> IMG
+    IMG --> LIT
     LIT -->|"approved hypotheses"| FIT
     FIT --> REV
     REV --> Report
 ```
 
-Each phase fans out parallel agents, synthesizes their reports via a single debate call, then waits for your approval before proceeding.
+Images are digested first (phase ⓪): `ImageDigestAgent` uses Claude's vision API to extract quantitative data from plots and figures, storing structured digests in `SharedMemory` before any analysis begins. All downstream agents (literature, fitting, reviewer) automatically see this data in their context. Each analysis phase fans out parallel agents, synthesizes their reports via a single debate call, then waits for your approval before proceeding.
 
 ---
 
@@ -78,7 +86,13 @@ export ANTHROPIC_API_KEY="sk-ant-..."
 mtf "We observe a plateau in longitudinal resistivity near B=3T in a 2D electron gas at T=4K. What could explain this?"
 ```
 
-Or run interactively (omit the argument and you will be prompted):
+Include experimental images (plots, figures, photographs) so MTF can read quantitative data from them:
+
+```bash
+mtf "Anomalous plateau in rho_xx near B=3T" --images rho_vs_B.png Hall_plot.png
+```
+
+Or run interactively (omit the argument and you will be prompted, including whether you have images to provide):
 
 ```bash
 mtf
@@ -96,6 +110,8 @@ mtf
 | `--fitting-model` | `claude-opus-4-6` | Model for fitting agents |
 | `--reviewer-model` | `claude-opus-4-6` | Model for reviewer agents |
 | `--debate-model` | `claude-opus-4-6` | Model for debate synthesis |
+| `--images` | _(none)_ | Image files to digest (PNG, JPG, GIF, WebP; space-separated) |
+| `--image-digest-model` | `claude-opus-4-6` | Model for image digestion |
 
 ### 2. Python API — with your own data
 
@@ -127,14 +143,42 @@ config = MTFConfig(
     max_debate_rounds=2,
 )
 
-# 3. Run
+# 3. Run (optionally pass image paths)
 orchestrator = MTFOrchestrator(config=config, toolkit=toolkit)
 report = asyncio.run(orchestrator.run(
-    "Anomalous resistivity plateau at B=3T in 2DEG at T=4K. What causes this?"
+    "Anomalous resistivity plateau at B=3T in 2DEG at T=4K. What causes this?",
+    images=["rho_vs_B.png", "Hall_plot.png"],   # optional
 ))
 ```
 
 See `examples/run_experiment.py` for a complete runnable example.
+
+---
+
+## Providing Images
+
+MTF can read quantitative information directly from experimental images using Claude's vision capabilities. Supported formats: **PNG, JPG, GIF, WebP**.
+
+For each image, `ImageDigestAgent` produces a structured digest containing:
+- Plot type and physical description
+- Axis labels, units, and scale (linear/log)
+- All data series as extracted numerical arrays
+- Key quantitative features — peak positions, plateau values, slopes, error bars, fit parameters
+- Any annotations or equations visible in the figure
+
+The digest is stored as `MemoryKind.IMAGE_DATA` in `SharedMemory` and is automatically included in the context of every literature, fitting, and reviewer agent. This means fitting agents can use plot-extracted data directly, even without registered toolkit arrays.
+
+**CLI:**
+```bash
+mtf "Describe phenomenon" --images figure1.png figure2.jpg
+```
+
+**Python API:**
+```python
+report = asyncio.run(orchestrator.run("Describe phenomenon", images=["figure1.png"]))
+```
+
+**Interactive mode:** When no `--images` flag is given, the CLI will ask whether you have images to provide before starting the analysis.
 
 ---
 
@@ -166,6 +210,7 @@ If the fitting agent requests something that is not registered, the CLI will pau
 All agents share a `SharedMemory` instance that accumulates entries across phases. Agents always see prior debate summaries and your feedback — no retrieval step needed.
 
 ```
+MemoryKind.IMAGE_DATA      → quantitative digests from user-provided images/plots
 MemoryKind.LITERATURE      → raw agent literature reports
 MemoryKind.DEBATE          → synthesized summaries from each phase
 MemoryKind.USER_FEEDBACK   → guidance you provide between rounds
@@ -187,10 +232,11 @@ mtf/
 ├── orchestrator.py     MTFOrchestrator.run()
 ├── cli.py              mtf CLI entry point
 ├── agents/
-│   ├── base.py         BaseAgent (wraps claude-agent-sdk query)
-│   ├── literature.py   arxiv + Semantic Scholar search
-│   ├── fitting.py      lmfit code generation + execution
-│   └── reviewer.py     theory validity + experiment suggestions
+│   ├── base.py           BaseAgent (wraps claude-agent-sdk query)
+│   ├── image_digest.py   ImageDigestAgent — vision API, quantitative plot extraction
+│   ├── literature.py     arxiv + Semantic Scholar search
+│   ├── fitting.py        lmfit code generation + execution
+│   └── reviewer.py       theory validity + experiment suggestions
 ├── phases/
 │   ├── literature_phase.py   fan-out → debate → approval loop
 │   ├── fitting_phase.py      toolkit resolution → fan-out → debate

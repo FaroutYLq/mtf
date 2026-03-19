@@ -34,7 +34,7 @@ class LiteratureAgent(BaseAgent):
             f"relevant literature:\n\n{phenomenon}\n\n"
             "Produce a comprehensive literature report with hypotheses."
         )
-        report = await self._query(task, extra_kinds=(MemoryKind.USER_FEEDBACK,))
+        report = await self._query(task, extra_kinds=(MemoryKind.USER_FEEDBACK, MemoryKind.IMAGE_DATA))
         self._memory.add(
             MemoryKind.LITERATURE,
             report,

@@ -14,6 +14,7 @@ class MemoryKind(str, Enum):
     HYPOTHESIS = "hypothesis"
     FIT_RESULT = "fit_result"
     REVIEW = "review"
+    IMAGE_DATA = "image_data"
 
 
 @dataclass
