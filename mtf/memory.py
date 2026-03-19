@@ -15,6 +15,7 @@ class MemoryKind(str, Enum):
     FIT_RESULT = "fit_result"
     REVIEW = "review"
     IMAGE_DATA = "image_data"
+    TOOLKIT_DIGEST = "toolkit_digest"
 
 
 @dataclass
