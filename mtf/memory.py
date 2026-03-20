@@ -16,6 +16,9 @@ class MemoryKind(str, Enum):
     REVIEW = "review"
     IMAGE_DATA = "image_data"
     TOOLKIT_DIGEST = "toolkit_digest"
+    # GPD MCP integration
+    CONVENTIONS = "conventions"        # physics convention lock from gpd-conventions
+    PHYSICS_VERDICT = "physics_verdict"  # structured check results from gpd-verification
 
 
 @dataclass

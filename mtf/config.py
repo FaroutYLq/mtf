@@ -28,3 +28,12 @@ class MTFConfig:
 
     # Toolkit
     toolkit_items: dict[str, object] = field(default_factory=dict)
+
+    # GPD MCP integration
+    enable_gpd_mcp: bool = True
+    physics_domains: list[str] = field(
+        default_factory=lambda: ["condensed_matter"],
+    )  # one or more domains; passed to get_checklist / subfield_defaults
+    gpd_servers: list[str] = field(
+        default_factory=lambda: ["verification", "errors", "protocols", "conventions", "patterns"]
+    )

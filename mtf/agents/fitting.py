@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 from mtf.agents.base import BaseAgent
 from mtf.memory import MemoryKind, SharedMemory
 from mtf.toolkit.registry import ToolkitRegistry
@@ -9,10 +11,28 @@ from mtf.tools.fitting_tools import run_fitting_code
 
 _SYSTEM_PROMPT = """You are an expert data analysis and model fitting agent for
 experimental physics. Given a hypothesis and experimental data, you:
-1. Identify what data and model functions are needed from the toolkit
-2. Write Python code using lmfit/numpy/scipy to fit the data
-3. Report fit quality (chi-squared, reduced chi-squared, residuals), best-fit parameters
-   with uncertainties, and an assessment of whether the hypothesis is supported.
+
+1. At the start, call `route_protocol` with a description of the hypothesis and what
+   is being fit to find the canonical computation protocol.
+2. Call `get_protocol` with the protocol name returned by route_protocol to retrieve
+   the full step-by-step methodology and mandatory checkpoints — use this as a
+   blueprint for your fitting code.
+3. Call `subfield_defaults` with the relevant subfield (e.g. condensed_matter, qft,
+   gr, plasma) to retrieve canonical sign conventions, Fourier transform conventions,
+   natural units, etc. Ensure your fitting code uses these correct conventions.
+4. Identify what data and model functions are needed from the toolkit.
+5. Write Python code using lmfit/numpy/scipy to fit the data, following the protocol
+   retrieved above and incorporating the correct conventions.
+6. In the result dict, always include:
+   - 'protocol_followed': name of the protocol retrieved via get_protocol
+   - 'physical_parameter_ranges': dict mapping each parameter name to whether its
+     best-fit value falls within expected physical bounds (True/False + note)
+   - 'protocol_checkpoints_satisfied': list of protocol checkpoint names that passed
+7. Report fit quality (chi-squared, reduced chi-squared, residuals), best-fit
+   parameters with uncertainties, and an assessment of whether the hypothesis is
+   supported. Chi-squared is a necessary metric but NOT the sole quality criterion;
+   physical correctness (parameter bounds, limiting cases, symmetry) matters more.
+
 Always write clean, well-commented fitting code."""
 
 
@@ -23,11 +43,13 @@ class FittingAgent(BaseAgent):
         model: str,
         memory: SharedMemory,
         toolkit: ToolkitRegistry,
+        gpd_tools: list[Any] | None = None,
     ) -> None:
+        extra_tools: list[Any] = gpd_tools if gpd_tools is not None else []
         super().__init__(
             agent_id=agent_id,
             model=model,
-            tools=[],
+            tools=[*extra_tools],
             memory=memory,
             system_prompt=_SYSTEM_PROMPT,
         )
@@ -43,7 +65,12 @@ class FittingAgent(BaseAgent):
         )
         response = await self._query(
             task,
-            extra_kinds=(MemoryKind.LITERATURE, MemoryKind.DEBATE, MemoryKind.IMAGE_DATA),
+            extra_kinds=(
+                MemoryKind.LITERATURE,
+                MemoryKind.DEBATE,
+                MemoryKind.IMAGE_DATA,
+                MemoryKind.CONVENTIONS,
+            ),
         )
         lines = [l.strip() for l in response.splitlines() if l.strip()]
         return lines
@@ -56,11 +83,21 @@ class FittingAgent(BaseAgent):
             "Write Python fitting code using lmfit. "
             "Assign your final result dict to a variable called 'result'. "
             "The result dict must include: 'parameters', 'uncertainties', "
-            "'chi_squared', 'reduced_chi_squared', 'assessment'."
+            "'chi_squared', 'reduced_chi_squared', 'assessment', "
+            "'protocol_followed' (name of the protocol retrieved via get_protocol), "
+            "'physical_parameter_ranges' (dict mapping each parameter name to whether "
+            "its best-fit value falls within expected physical bounds), "
+            "'protocol_checkpoints_satisfied' (list of checkpoint names that passed)."
         )
         code = await self._query(
             task,
-            extra_kinds=(MemoryKind.LITERATURE, MemoryKind.DEBATE, MemoryKind.USER_FEEDBACK, MemoryKind.IMAGE_DATA),
+            extra_kinds=(
+                MemoryKind.LITERATURE,
+                MemoryKind.DEBATE,
+                MemoryKind.USER_FEEDBACK,
+                MemoryKind.IMAGE_DATA,
+                MemoryKind.CONVENTIONS,
+            ),
         )
         # Strip markdown code fences if present
         if "```" in code:

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+from typing import Any
 
 from mtf.agents.fitting import FittingAgent
 from mtf.agents.tool_builder import ToolBuilderAgent
@@ -26,9 +27,28 @@ async def run_fitting_phase(
     interface: HumanInterface,
     debate_engine: DebateEngine,
     toolkit: ToolkitRegistry,
+    gpd: Any | None = None,
 ) -> str:
     """For each hypothesis, fan out M fitting agents and synthesize results."""
     semaphore = asyncio.Semaphore(config.fitting_semaphore_limit)
+
+    # Build GPD tools for FittingAgent
+    gpd_tools: list[Any] = []
+    if gpd is not None:
+        gpd_tools = [t for t in [
+            gpd.make_tool("protocols", "route_protocol",
+                "Find the canonical computation protocol for this type of physics fitting. "
+                "Input: computation_type (str describing what you're fitting). "
+                "Returns matching protocols. Call this before writing any fitting code."),
+            gpd.make_tool("protocols", "get_protocol",
+                "Retrieve the full step-by-step methodology for a named physics protocol, "
+                "including checkpoints you must satisfy. Input: name (str from route_protocol). "
+                "Follow these steps in your fitting code."),
+            gpd.make_tool("conventions", "subfield_defaults",
+                "Get canonical physics convention defaults for a subfield "
+                "(e.g. condensed_matter, qft, gr, amo). Use to ensure your fitting code "
+                "uses correct sign conventions, Fourier transforms, and natural units."),
+        ] if t is not None]
 
     async def fit_with_semaphore(agent: FittingAgent, hypothesis: str) -> dict[str, object]:
         async with semaphore:
@@ -46,6 +66,7 @@ async def run_fitting_phase(
         model=config.fitting_model,
         memory=memory,
         toolkit=toolkit,
+        gpd_tools=gpd_tools,
     )
     seen_missing: set[str] = set()
     for hypothesis in hypotheses:
@@ -114,6 +135,7 @@ async def run_fitting_phase(
                     model=config.fitting_model,
                     memory=memory,
                     toolkit=toolkit,
+                    gpd_tools=gpd_tools,
                 )
                 for i in range(config.n_fitting)
             ]
@@ -129,6 +151,7 @@ async def run_fitting_phase(
                 model=config.fitting_model,
                 memory=memory,
                 toolkit=toolkit,
+                gpd_tools=gpd_tools,
             )
             for i in range(config.n_fitting)
         ]

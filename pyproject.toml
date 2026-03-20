@@ -24,6 +24,7 @@ mtf = "mtf.cli:main"
 
 [project.optional-dependencies]
 dev = ["pytest>=8.0", "pytest-asyncio>=0.23", "mypy>=1.9", "ruff>=0.4"]
+gpd = ["get-physics-done>=1.1.0", "mcp>=1.26.0"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
