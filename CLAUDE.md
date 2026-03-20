@@ -92,6 +92,24 @@ Each phase: fan-out agents with `asyncio.gather()` → collect reports → `Deba
 ### Concurrency
 Fitting agents are rate-limited by `asyncio.Semaphore(config.fitting_semaphore_limit)` (default 6) to avoid overwhelming the API when `fitting_scope="per_hypothesis"` spawns `N_hypotheses × M` concurrent agents.
 
+### GPD MCP Integration
+MTF optionally connects to [get-physics-done](https://github.com/FaroutYLq/get-physics-done) MCP servers for physics verification. Install with `pip install -e ".[dev,gpd]"`. Controlled by `config.enable_gpd_mcp` (default `True`; no-ops gracefully if the package is missing).
+
+**Servers** (defined in `mtf/tools/gpd_mcp.py`):
+- `verification` — structured physics checks (dimensional analysis 5.1, symmetry 5.2, limiting cases 5.3, fit-family mismatch 5.18)
+- `errors` — catalog of 104 known physics error classes with detection strategies
+- `protocols` — canonical computation protocols (step-by-step methodology with checkpoints)
+- `conventions` — subfield-specific sign conventions, Fourier transforms, natural units
+- `patterns` — persistent cross-session library of discovered physics error patterns
+
+**`GPDMCPClient`** runs a dedicated background event loop in a daemon thread. Each server is a subprocess communicating over stdio MCP protocol. `make_tool(server, tool_name, description)` returns an `sdk.Tool` (or `None` if unavailable), which phases filter into agent tool lists. `call(server, tool_name, **kwargs)` provides synchronous access for one-shot calls (e.g. seeding patterns at startup).
+
+**New `MemoryKind` values**:
+- `CONVENTIONS` — physics convention snapshot locked at the start of the literature phase; included in all agent prompt contexts
+- `PHYSICS_VERDICT` — structured check results from the verification server; injected into debate synthesis context
+
+**Pipeline flow**: conventions are locked once in the literature phase via `subfield_defaults`. All three agent types accept `gpd_tools: list | None` for backward compatibility. `DebateEngine.synthesize()` conditionally adds a physics-first ranking criterion to the system prompt for fitting and review phases (not literature). Conventions and physics verdicts from memory are appended to the user content block sent to the synthesis call.
+
 ## Key Invariants
 
 - All `HumanInterface` methods are async; never call `input()` directly.
