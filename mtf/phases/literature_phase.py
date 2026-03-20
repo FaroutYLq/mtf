@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+from typing import Any
 
 from mtf.agents.literature import LiteratureAgent
 from mtf.config import MTFConfig
@@ -17,11 +18,36 @@ async def run_literature_phase(
     memory: SharedMemory,
     interface: HumanInterface,
     debate_engine: DebateEngine,
+    gpd: Any | None = None,
 ) -> list[str]:
     """Fan out N literature agents, debate, get user approval, loop.
 
     Returns approved hypotheses as a list of strings.
     """
+    # Build GPD tools for LiteratureAgent
+    gpd_tools: list[Any] = []
+    if gpd is not None:
+        gpd_tools = [t for t in [
+            gpd.make_tool("errors", "check_error_classes",
+                "Given a physics phenomenon or hypothesis description, return the top relevant "
+                "physics error classes from a catalog of 104 known errors, with relevance scores "
+                "and detection strategies. Call this first before searching literature."),
+            gpd.make_tool("protocols", "route_protocol",
+                "Find the canonical computation protocol for a given physics calculation type. "
+                "Input: computation_type (str). Returns matching protocols with relevance scores. "
+                "Use to identify what methodology the literature should follow."),
+        ] if t is not None]
+
+    # Lock physics conventions before the first fan-out
+    if gpd is not None:
+        conventions = gpd.call("conventions", "subfield_defaults", domain=config.physics_domain)
+        if conventions:
+            memory.add(MemoryKind.CONVENTIONS, conventions)
+            await interface.show(
+                f"Physics conventions locked for domain **{config.physics_domain}**.",
+                title="MTF: GPD Conventions",
+            )
+
     synthesis = ""
     for round_num in range(1, config.max_debate_rounds + 1):
         await interface.show(
@@ -35,6 +61,7 @@ async def run_literature_phase(
                 agent_id=f"lit-{i}",
                 model=config.literature_model,
                 memory=memory,
+                gpd_tools=gpd_tools,
             )
             for i in range(config.n_literature)
         ]
