@@ -31,7 +31,9 @@ class MTFConfig:
 
     # GPD MCP integration
     enable_gpd_mcp: bool = True
-    physics_domain: str = "condensed_matter"  # passed to get_checklist / subfield_defaults
+    physics_domains: list[str] = field(
+        default_factory=lambda: ["condensed_matter"],
+    )  # one or more domains; passed to get_checklist / subfield_defaults
     gpd_servers: list[str] = field(
         default_factory=lambda: ["verification", "errors", "protocols", "conventions", "patterns"]
     )

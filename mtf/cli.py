@@ -39,10 +39,12 @@ def build_parser() -> argparse.ArgumentParser:
 
     # GPD MCP integration
     p.add_argument(
-        "--physics-domain",
-        default="condensed_matter",
+        "--physics-domains",
+        nargs="+",
+        default=["condensed_matter"],
         metavar="DOMAIN",
-        help="Physics domain for GPD conventions (default: condensed_matter)",
+        help="Physics domains for GPD conventions and checklists, e.g. "
+        "'condensed_matter qft' for cross-domain phenomena (default: condensed_matter)",
     )
     p.add_argument(
         "--no-gpd",
@@ -74,7 +76,7 @@ def main() -> None:
 
     gpd_kwargs: dict[str, object] = {
         "enable_gpd_mcp": not args.no_gpd,
-        "physics_domain": args.physics_domain,
+        "physics_domains": args.physics_domains,
     }
     if args.gpd_servers is not None:
         gpd_kwargs["gpd_servers"] = args.gpd_servers
