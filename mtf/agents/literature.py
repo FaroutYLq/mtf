@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 from mtf.agents.base import BaseAgent
 from mtf.memory import MemoryKind, SharedMemory
 from mtf.tools.arxiv_search import make_arxiv_search_tool
 from mtf.tools.semantic_search import make_semantic_search_tool
-from mtf.tools.gpd_mcp import GPDMCPClient
 
 _SYSTEM_PROMPT = """You are an expert theoretical and experimental physicist acting as a
 literature research agent. Your goal is to find relevant prior work that could explain
@@ -37,30 +38,13 @@ class LiteratureAgent(BaseAgent):
         agent_id: str,
         model: str,
         memory: SharedMemory,
-        gpd: GPDMCPClient | None = None,
+        gpd_tools: list[Any] | None = None,
     ) -> None:
-        gpd_tools = []
-        if gpd is not None and gpd.available:
-            gpd_tools = [
-                t
-                for t in [
-                    gpd.make_tool(
-                        "protocols",
-                        "route_protocol",
-                        "Find the canonical computation protocol relevant to this phenomenon before searching literature. Input: computation_type (str). Returns matching protocols — use to understand what methodology the relevant papers should follow.",
-                    ),
-                    gpd.make_tool(
-                        "errors",
-                        "check_error_classes",
-                        "Given a proposed hypothesis, identify the most likely physics error classes to watch for. Input: computation_desc (str describing the hypothesis or phenomenon). Returns top-15 relevant error classes — flag these when evaluating candidate hypotheses from literature.",
-                    ),
-                ]
-                if t is not None
-            ]
+        extra_tools: list[Any] = gpd_tools if gpd_tools is not None else []
         super().__init__(
             agent_id=agent_id,
             model=model,
-            tools=[make_arxiv_search_tool(), make_semantic_search_tool(), *gpd_tools],
+            tools=[make_arxiv_search_tool(), make_semantic_search_tool(), *extra_tools],
             memory=memory,
             system_prompt=_SYSTEM_PROMPT,
         )
