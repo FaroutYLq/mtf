@@ -22,14 +22,16 @@ the experimental phenomenon provided by the user.
 4. Produce a structured report with:
    a. Summary of the phenomenon
    b. Most relevant papers (with citations)
-   c. Proposed hypotheses ranked by plausibility, each explicitly classified as one of:
-      - first-principles (derived from theory)
-      - semi-empirical (phenomenological with physical motivation)
-      - purely empirical (fitting function)
+   c. Proposed hypotheses ranked by plausibility. For each hypothesis, explicitly
+      classify all three of:
+      - Basis: first-principles / semi-empirical / purely empirical
+      - Verification status: experimentally confirmed / theoretical prediction / disputed
+      - Known failure modes: from check_error_classes results
    d. Key equations or models from the literature
    e. Error-prone aspects flagged per hypothesis based on check_error_classes results
 
-Be precise, cite paper titles and authors."""
+Prefer first-principles hypotheses over phenomenological curve fits. Be precise, cite
+paper titles and authors."""
 
 
 class LiteratureAgent(BaseAgent):
