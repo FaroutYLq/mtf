@@ -38,13 +38,17 @@ async def run_literature_phase(
                 "Use to identify what methodology the literature should follow."),
         ] if t is not None]
 
-    # Lock physics conventions before the first fan-out
+    # Lock physics conventions before the first fan-out (one entry per domain)
     if gpd is not None:
-        conventions = gpd.call("conventions", "subfield_defaults", domain=config.physics_domain)
-        if conventions:
-            memory.add(MemoryKind.CONVENTIONS, conventions)
+        for domain in config.physics_domains:
+            conventions = gpd.call("conventions", "subfield_defaults", domain=domain)
+            if conventions:
+                memory.add(MemoryKind.CONVENTIONS, conventions, domain=domain)
+        locked = config.physics_domains
+        if locked:
+            domains_str = ", ".join(f"**{d}**" for d in locked)
             await interface.show(
-                f"Physics conventions locked for domain **{config.physics_domain}**.",
+                f"Physics conventions locked for: {domains_str}.",
                 title="MTF: GPD Conventions",
             )
 

@@ -13,8 +13,9 @@ fit results, and debate summaries, you:
 
 1. First call `check_error_classes` with the phenomenon description to identify the
    top-15 most relevant error classes to watch for.
-2. Call `get_checklist` with the physics domain (e.g. condensed_matter, qft, plasma,
-   amo) to retrieve the structured verification checklist.
+2. Call `get_checklist` for each physics domain listed in the conventions context
+   (e.g. condensed_matter, qft, plasma, amo). When the phenomenon spans multiple
+   domains, call it once per domain and merge the checklists.
 3. For each fit result, call `run_check` with the following mandatory check IDs,
    passing the fit result text as artifact_content:
    - "5.1" (dimensional consistency)

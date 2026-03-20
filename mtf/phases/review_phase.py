@@ -28,7 +28,9 @@ async def run_review_phase(
             gpd.make_tool("verification", "get_checklist",
                 "Get the domain-specific physics verification checklist. "
                 "Input: domain (str, e.g. condensed_matter, qft, gr, amo). "
-                "Returns list of check IDs and descriptions. Call this FIRST."),
+                "Returns list of check IDs and descriptions. Call this FIRST, "
+                "once per domain if the phenomenon spans multiple domains, "
+                "and merge the resulting checklists."),
             gpd.make_tool("verification", "run_check",
                 "Run a specific physics verification check against a fit result or hypothesis text. "
                 "Input: check_id (str: '5.1'=dimensional, '5.2'=symmetry, '5.3'=limiting_cases, "
