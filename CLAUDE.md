@@ -41,7 +41,8 @@ mtf/
 ├── tools/
 │   ├── arxiv_search.py     sdk.Tool wrapping arxiv.Client
 │   ├── semantic_search.py  sdk.Tool wrapping semanticscholar API
-│   └── fitting_tools.py    run_fitting_code() — exec-based sandboxed runner
+│   ├── fitting_tools.py    run_fitting_code() — exec-based sandboxed runner
+│   └── gpd_mcp.py          GPDMCPClient — bridges GPD MCP servers to sdk.Tool
 └── toolkit/
     └── registry.py         ToolkitRegistry — user-provided data arrays + model callables
 ```
@@ -51,6 +52,9 @@ mtf/
 ```bash
 # Install (editable + dev extras)
 pip install -e ".[dev]"
+
+# Install with GPD physics verification
+pip install -e ".[dev,gpd]"
 
 # Lint
 ruff check mtf tests
@@ -93,22 +97,35 @@ Each phase: fan-out agents with `asyncio.gather()` → collect reports → `Deba
 Fitting agents are rate-limited by `asyncio.Semaphore(config.fitting_semaphore_limit)` (default 6) to avoid overwhelming the API when `fitting_scope="per_hypothesis"` spawns `N_hypotheses × M` concurrent agents.
 
 ### GPD MCP Integration
-MTF optionally connects to [get-physics-done](https://github.com/FaroutYLq/get-physics-done) MCP servers for physics verification. Install with `pip install -e ".[dev,gpd]"`. Controlled by `config.enable_gpd_mcp` (default `True`; no-ops gracefully if the package is missing).
 
-**Servers** (defined in `mtf/tools/gpd_mcp.py`):
-- `verification` — structured physics checks (dimensional analysis 5.1, symmetry 5.2, limiting cases 5.3, fit-family mismatch 5.18)
-- `errors` — catalog of 104 known physics error classes with detection strategies
-- `protocols` — canonical computation protocols (step-by-step methodology with checkpoints)
-- `conventions` — subfield-specific sign conventions, Fourier transforms, natural units
-- `patterns` — persistent cross-session library of discovered physics error patterns
+**Design principle: use existing GPD tools rather than reimplementing physics verification.** GPD ([Get Physics Done](https://github.com/psi-oss/get-physics-done)) already ships 104 curated error classes, step-by-step protocols for 47+ physics domains, convention databases for 18 subfields, and structured verification checks — all exposed as callable MCP tools. mtf consumes these tools at runtime through a bridge layer rather than duplicating this physics knowledge in its own prompts or code.
 
-**`GPDMCPClient`** runs a dedicated background event loop in a daemon thread. Each server is a subprocess communicating over stdio MCP protocol. `make_tool(server, tool_name, description)` returns an `sdk.Tool` (or `None` if unavailable), which phases filter into agent tool lists. `call(server, tool_name, **kwargs)` provides synchronous access for one-shot calls (e.g. seeding patterns at startup).
+Install with `pip install -e ".[dev,gpd]"`. Controlled by `config.enable_gpd_mcp` (default `True`; no-ops gracefully if the package is missing).
 
-**New `MemoryKind` values**:
-- `CONVENTIONS` — physics convention snapshot locked at the start of the literature phase; included in all agent prompt contexts
+**Servers** (managed by `GPDMCPClient` in `mtf/tools/gpd_mcp.py`):
+
+| Server | GPD tools used by mtf | Why mtf uses GPD instead of reimplementing |
+|---|---|---|
+| `verification` | `get_checklist`, `run_check`, `dimensional_check`, `limiting_case_check` | GPD maintains domain-specific checklists (check IDs 5.1–5.19) with automated issue detection. Reimplementing would require encoding physics knowledge per domain. |
+| `errors` | `check_error_classes`, `get_detection_strategy` | GPD's catalog of 104 error classes (sign errors, missing factors of 2π, gauge artifacts, etc.) with detection strategies is a curated knowledge base that improves over time. |
+| `protocols` | `route_protocol`, `get_protocol` | GPD provides canonical step-by-step methodology with checkpoints for each physics domain. FittingAgent follows these instead of inventing ad-hoc procedures. |
+| `conventions` | `subfield_defaults`, `convention_check` | GPD tracks 18 standard convention fields (metric signature, Fourier convention, natural units, gauge choice, etc.) across 14 subdomains. Prevents silent convention mismatches between agents. |
+| `patterns` | `lookup_pattern`, `add_pattern`, `seed_patterns` | GPD's `~/.gpd/` pattern store is the only persistent cross-session memory in the mtf pipeline. Errors found in one run surface in future runs on the same domain. |
+
+**`GPDMCPClient`** runs a dedicated background event loop in a daemon thread. Each server is a subprocess communicating over stdio MCP protocol. `make_tool(server, tool_name, description, params=)` returns an `sdk.Tool` (or `None` if unavailable), which phases filter into agent tool lists. `call(server, tool_name, **kwargs)` provides synchronous access for phase-level one-shot calls (e.g. convention locking, seeding patterns). `async_call()` offloads the blocking wait to a thread pool for use inside `asyncio.gather()` fan-outs.
+
+**How GPD tools flow to each agent**:
+- `LiteratureAgent` receives: `check_error_classes` (flag error-prone hypotheses), `route_protocol` (identify correct methodology)
+- `FittingAgent` receives: `route_protocol` + `get_protocol` (follow canonical procedure), `subfield_defaults` (correct conventions)
+- `ReviewerAgent` receives: all 8 tools above — `get_checklist`, `run_check` (5.1/5.2/5.3/5.18), `dimensional_check`, `limiting_case_check`, `check_error_classes`, `get_detection_strategy`, `lookup_pattern`, `add_pattern`
+
+**`MemoryKind` values for GPD data**:
+- `CONVENTIONS` — physics convention snapshot locked per domain at the start of the literature phase; included in all agent prompt contexts
 - `PHYSICS_VERDICT` — structured check results from the verification server; injected into debate synthesis context
 
-**Pipeline flow**: conventions are locked once in the literature phase via `subfield_defaults`. All three agent types accept `gpd_tools: list | None` for backward compatibility. `DebateEngine.synthesize()` conditionally adds a physics-first ranking criterion to the system prompt for fitting and review phases (not literature). Conventions and physics verdicts from memory are appended to the user content block sent to the synthesis call.
+**Pipeline flow**: conventions are locked once in the literature phase via `subfield_defaults` (called once per domain in `config.physics_domains`). All three agent types accept `gpd_tools: list | None` for backward compatibility. `DebateEngine.synthesize()` conditionally adds a physics-first ranking criterion to the system prompt for fitting and review phases (not literature). Conventions and physics verdicts from memory are appended to the user content block sent to the synthesis call.
+
+**When adding new physics capabilities to mtf**: check whether GPD already provides it as an MCP tool before implementing from scratch. The `gpd-mcp-skills` server (`list_skills`, `route_skill`) can discover available GPD capabilities programmatically.
 
 ## Key Invariants
 

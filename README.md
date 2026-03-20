@@ -10,30 +10,44 @@ A multi-agent AI system for experimental physicists. Describe an unexplained phe
 flowchart TD
     Input(["📋 User Input\nphenomenon description + images + toolkit data"])
 
+    subgraph GPD ["🔧 GPD MCP SERVERS (optional)"]
+        direction TB
+        GV["verification\nchecks 5.1–5.19"]
+        GE["errors\n104 error classes"]
+        GP["protocols\n47+ domain protocols"]
+        GC["conventions\n18 subfields"]
+        GPat["patterns\ncross-session memory"]
+    end
+
     subgraph LIT ["① LITERATURE PHASE"]
         direction TB
-        L["L1 · L2 · L3\nN parallel agents\narxiv + Semantic Scholar"]
+        LC["Lock conventions\nvia GPD subfield_defaults"]
+        L["L1 · L2 · L3\nN parallel agents\narxiv + Semantic Scholar\n+ GPD: check_error_classes, route_protocol"]
         LD["🔀 Debate\nsynthesis call"]
         LU{"User approval"}
-        L --> LD --> LU
+        LC --> L --> LD --> LU
         LU -->|"reject: add feedback"| L
     end
 
     subgraph FIT ["② FITTING PHASE  —  per approved hypothesis"]
         direction TB
         FT["toolkit check\n(request missing data from user)"]
-        F["F1 · F2 · F3\nM parallel agents\nlmfit + numpy/scipy"]
-        FD["🔀 Debate\nsynthesis call"]
+        F["F1 · F2 · F3\nM parallel agents\nlmfit + numpy/scipy\n+ GPD: route_protocol, get_protocol, subfield_defaults"]
+        FD["🔀 Debate\nphysics-first ranking"]
         FU{"User approval"}
         FT --> F --> FD --> FU
     end
 
     subgraph REV ["③ REVIEW PHASE"]
         direction TB
-        R["R1 · R2 · R3\nK parallel agents\ntheory validity + next experiments"]
-        RD["🔀 Debate\nfinal synthesis"]
+        R["R1 · R2 · R3\nK parallel agents\n+ GPD: get_checklist, run_check, check_error_classes,\nlookup_pattern, add_pattern"]
+        RD["🔀 Debate\nphysics-first ranking"]
         R --> RD
     end
+
+    GPD -.->|"tools"| L
+    GPD -.->|"tools"| F
+    GPD -.->|"tools"| R
 
     Report(["📄 Final Report"])
 
@@ -60,9 +74,9 @@ Images are digested first (phase ⓪): `ImageDigestAgent` uses Claude's vision A
 | Agent | Phase | API | Tools | Memory written | Description |
 |-------|-------|-----|-------|----------------|-------------|
 | `ImageDigestAgent` | ⓪ Pre-processing | `messages.create()` (multimodal) | — | `IMAGE_DATA` | Encodes each user image as base64 and calls the vision API to extract plot type, axis labels/units/scale, numerical data series, quantitative features, and annotations. Runs in parallel, one instance per image. |
-| `LiteratureAgent` | ① Literature | `sdk.query()` | arxiv search, Semantic Scholar | `LITERATURE` | Searches arxiv and Semantic Scholar for papers relevant to the phenomenon. Returns a structured report: phenomenon summary, cited papers, ranked hypotheses, and key equations. Spawns N parallel instances (default 3). |
-| `FittingAgent` | ② Fitting | `sdk.query()` | `run_fitting_code()` (exec sandbox) | `FIT_RESULT` | Given an approved hypothesis and toolkit data, writes and executes `lmfit`/`numpy`/`scipy` fitting code. Reports χ², reduced χ², best-fit parameters with uncertainties, and hypothesis support. Rate-limited by `asyncio.Semaphore`. |
-| `ReviewerAgent` | ③ Review | `sdk.query()` | — | `REVIEW` | Evaluates hypothesis validity against data and literature, identifies weaknesses and confounds, and proposes specific follow-up experiments to distinguish competing explanations. Spawns K parallel instances (default 3). |
+| `LiteratureAgent` | ① Literature | `sdk.query()` | arxiv search, Semantic Scholar, GPD: `check_error_classes`, `route_protocol` | `LITERATURE` | Searches arxiv and Semantic Scholar. Calls GPD to identify error-prone hypotheses and the relevant computation protocol. Classifies each hypothesis by physical basis (first-principles / semi-empirical / purely empirical). Spawns N parallel instances (default 3). |
+| `FittingAgent` | ② Fitting | `sdk.query()` | GPD: `route_protocol`, `get_protocol`, `subfield_defaults` | `FIT_RESULT` | Given an approved hypothesis and toolkit data, retrieves the canonical domain protocol from GPD and writes fitting code that follows its checkpoints. Reports χ², parameters, and protocol compliance. Rate-limited by `asyncio.Semaphore`. |
+| `ReviewerAgent` | ③ Review | `sdk.query()` | GPD: `get_checklist`, `run_check`, `dimensional_check`, `limiting_case_check`, `check_error_classes`, `get_detection_strategy`, `lookup_pattern`, `add_pattern` | `REVIEW` | Runs GPD's structured verification checks (5.1 dimensional, 5.2 symmetry, 5.3 limiting cases, 5.18 fit-family) against each fit result. Produces SUPPORTED/PLAUSIBLE/SPECULATIVE/REJECTED verdicts citing check IDs. Records new error patterns for future sessions. Spawns K parallel instances (default 3). |
 | `ToolBuilderAgent` | ② Fitting (on demand) | `sdk.query()` | — | `TOOLKIT_DIGEST` | Invoked when a fitting agent requests toolkit data that the user has not pre-registered. Parses raw user input (functions, CSVs, code snippets) into `data_items` and `model_items` dicts via LLM-generated `exec()` code, then registers them in `ToolkitRegistry`. |
 
 All agents except `ImageDigestAgent` extend `BaseAgent`, which prepends a formatted `SharedMemory` context block before every `sdk.query()` call so every agent sees prior debate summaries, image digests, and user feedback.
@@ -78,13 +92,16 @@ All agents except `ImageDigestAgent` extend `BaseAgent`, which prepends a format
 git clone https://github.com/your-org/mtf.git
 cd mtf
 
-# Option A — pip
+# Option A — pip (without GPD physics verification)
 pip install -e ".[dev]"
+
+# Option A — pip (with GPD physics verification — recommended)
+pip install -e ".[dev,gpd]"
 
 # Option B — conda
 conda env create -f environment.yml
 conda activate mtf
-pip install -e .
+pip install -e ".[gpd]"
 
 # Set your API key
 export ANTHROPIC_API_KEY="sk-ant-..."
@@ -126,6 +143,9 @@ mtf
 | `--debate-model` | `claude-opus-4-6` | Model for debate synthesis |
 | `--images` | _(none)_ | Image files to digest (PNG, JPG, GIF, WebP; space-separated) |
 | `--image-digest-model` | `claude-opus-4-6` | Model for image digestion |
+| `--physics-domains` | `condensed_matter` | Physics domains for GPD (space-separated, e.g. `condensed_matter qft`) |
+| `--no-gpd` | _(off)_ | Disable GPD MCP physics verification servers |
+| `--gpd-servers` | _(all)_ | Which GPD servers to start (verification, errors, protocols, conventions, patterns) |
 
 ### 2. Python API — with your own data
 
@@ -219,18 +239,52 @@ If the fitting agent requests something that is not registered, the CLI will pau
 
 ---
 
+## GPD Physics Verification (optional)
+
+MTF integrates with [Get Physics Done (GPD)](https://github.com/psi-oss/get-physics-done) to shift hypothesis selection from chi-squared toward physical correctness. Rather than reimplementing physics verification from scratch, mtf **uses GPD's existing MCP servers as callable tools** — the same way it uses arxiv and Semantic Scholar.
+
+When GPD is installed, five MCP servers run as subprocesses alongside mtf:
+
+| GPD Server | What mtf gets from it | Which agents call it |
+|---|---|---|
+| **verification** | Structured physics checks: dimensional analysis (5.1), symmetry (5.2), limiting cases (5.3), fit-family mismatch (5.18) | ReviewerAgent |
+| **errors** | 104 curated physics error classes with detection strategies (sign errors, missing 2π factors, gauge artifacts, etc.) | LiteratureAgent, ReviewerAgent |
+| **protocols** | Step-by-step methodology with checkpoints for 47+ physics domains | LiteratureAgent, FittingAgent |
+| **conventions** | Canonical defaults for 18 subfields (Fourier convention, metric signature, natural units, gauge choice, etc.) | FittingAgent (via memory) |
+| **patterns** | Persistent cross-session error pattern library in `~/.gpd/` | ReviewerAgent |
+
+The key difference this makes: the `DebateEngine` synthesis for fitting and review phases ranks hypotheses by **physics check results first, chi-squared last**. A model with chi²=1.5 that passes all verification checks ranks above chi²=0.9 with a dimensional analysis failure.
+
+```bash
+# Without GPD (original behavior)
+mtf "anomalous resistivity plateau" --no-gpd
+
+# With GPD (recommended)
+pip install -e ".[gpd]"
+mtf "anomalous resistivity plateau"
+
+# Cross-domain phenomenon
+mtf "neutron star cooling anomaly" --physics-domains gr nuclear amo
+```
+
+GPD is fully optional — when not installed or disabled via `--no-gpd`, all agents run exactly as before.
+
+---
+
 ## Shared Memory
 
 All agents share a `SharedMemory` instance that accumulates entries across phases. Agents always see prior debate summaries and your feedback — no retrieval step needed.
 
 ```
-MemoryKind.IMAGE_DATA      → quantitative digests from user-provided images/plots
-MemoryKind.LITERATURE      → raw agent literature reports
-MemoryKind.DEBATE          → synthesized summaries from each phase
-MemoryKind.USER_FEEDBACK   → guidance you provide between rounds
-MemoryKind.HYPOTHESIS      → approved hypotheses passed to fitting
-MemoryKind.FIT_RESULT      → fitting agent outputs
-MemoryKind.REVIEW          → reviewer agent outputs
+MemoryKind.IMAGE_DATA       → quantitative digests from user-provided images/plots
+MemoryKind.LITERATURE       → raw agent literature reports
+MemoryKind.DEBATE           → synthesized summaries from each phase
+MemoryKind.USER_FEEDBACK    → guidance you provide between rounds
+MemoryKind.HYPOTHESIS       → approved hypotheses passed to fitting
+MemoryKind.FIT_RESULT       → fitting agent outputs
+MemoryKind.REVIEW           → reviewer agent outputs
+MemoryKind.CONVENTIONS      → GPD physics conventions locked per domain (sign, Fourier, units)
+MemoryKind.PHYSICS_VERDICT  → GPD structured verification results (check IDs + PASS/FAIL)
 ```
 
 ---
@@ -258,7 +312,8 @@ mtf/
 ├── tools/
 │   ├── arxiv_search.py
 │   ├── semantic_search.py
-│   └── fitting_tools.py      exec-based sandboxed fitting runner
+│   ├── fitting_tools.py      exec-based sandboxed fitting runner
+│   └── gpd_mcp.py            GPDMCPClient — bridges GPD MCP servers to sdk.Tool
 └── toolkit/
     └── registry.py     ToolkitRegistry (user data + model functions)
 ```
