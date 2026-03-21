@@ -33,7 +33,7 @@ class ToolkitRegistry:
     # --- models ---
 
     def register_model(self, name: str, fn: Callable[..., Any]) -> None:
-        """Register a named model callable (x, *params) → y."""
+        """Register a named model callable ``f(x, *params) -> y``."""
         self._models[name] = fn
 
     def get_model(self, name: str) -> Callable[..., Any]:

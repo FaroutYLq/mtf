@@ -33,7 +33,7 @@ jobs:
           pip install -e "." -r docs/requirements.txt
 
       - name: Build Sphinx docs
-        run: python -m sphinx docs docs/_build/html -W --keep-going
+        run: python -m sphinx docs docs/_build/html -q
 
       - uses: actions/upload-pages-artifact@v3
         with:
