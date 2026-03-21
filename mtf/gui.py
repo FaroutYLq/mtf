@@ -17,6 +17,21 @@ from typing import Any
 
 from mtf.interface import HumanInterface
 
+_REPLY_POLL_INTERVAL = 1.0  # seconds between timeout checks in _blocking_get
+_REPLY_TIMEOUT = 3600.0     # 1 hour — abandon wait if browser tab was closed
+
+
+def _blocking_get(rq: "queue.Queue[Any]") -> Any:
+    """Poll *rq* in short intervals so the thread can eventually be GC'd if the
+    browser session disappears (avoids an indefinite daemon-thread leak)."""
+    deadline = time.monotonic() + _REPLY_TIMEOUT
+    while time.monotonic() < deadline:
+        try:
+            return rq.get(timeout=_REPLY_POLL_INTERVAL)
+        except queue.Empty:
+            continue
+    raise TimeoutError("No reply received from Streamlit within the timeout period.")
+
 
 class StreamlitInterface(HumanInterface):
     """HumanInterface implementation that sends messages through a queue to Streamlit."""
@@ -30,12 +45,12 @@ class StreamlitInterface(HumanInterface):
     async def ask(self, prompt: str) -> str:
         rq: queue.Queue[str] = queue.Queue()
         self._q.put(("ask", prompt, rq))
-        return await asyncio.get_event_loop().run_in_executor(None, rq.get)
+        return await asyncio.get_running_loop().run_in_executor(None, _blocking_get, rq)
 
     async def confirm(self, prompt: str) -> bool:
         rq: queue.Queue[bool] = queue.Queue()
         self._q.put(("confirm", prompt, rq))
-        return await asyncio.get_event_loop().run_in_executor(None, rq.get)
+        return await asyncio.get_running_loop().run_in_executor(None, _blocking_get, rq)
 
     async def ask_for_files(self) -> list[str]:
         # Files are supplied via st.file_uploader at startup and passed directly
@@ -193,12 +208,18 @@ def _streamlit_app() -> None:
                 ss.final_report = report
                 ss.running = False
                 ss.finished = True
+                if tmp_dir := ss.get("tmp_dir"):
+                    tmp_dir.cleanup()
+                    ss.tmp_dir = None
                 break
             elif kind == "error":
                 _, tb, _ = msg
                 ss.error = tb
                 ss.running = False
                 ss.finished = True
+                if tmp_dir := ss.get("tmp_dir"):
+                    tmp_dir.cleanup()
+                    ss.tmp_dir = None
                 break
 
     # Render accumulated show() messages
@@ -261,6 +282,8 @@ def _streamlit_app() -> None:
             st.code(ss.error, language="text")
 
         if st.button("Start new analysis"):
+            if tmp_dir := ss.get("tmp_dir"):
+                tmp_dir.cleanup()
             for key in ["running", "finished", "ui_queue", "thread", "messages",
                         "pending", "final_report", "error", "tmp_dir"]:
                 ss.pop(key, None)
