@@ -98,7 +98,13 @@ pip install -e ".[dev]"
 # Option A — pip (with GPD physics verification — recommended)
 pip install -e ".[dev,gpd]"
 
-# Option B — conda
+# Option B — with browser GUI
+pip install -e ".[dev,gui]"
+
+# Option C — all extras
+pip install -e ".[dev,gpd,gui]"
+
+# Option D — conda
 conda env create -f environment.yml
 conda activate mtf
 pip install -e ".[gpd]"
@@ -111,7 +117,20 @@ export ANTHROPIC_API_KEY="sk-ant-..."
 
 ## Quick Start
 
-### 1. CLI — no code required
+### 1. Browser GUI — no terminal interaction required
+
+```bash
+pip install -e ".[gui]"
+mtf-gui
+```
+
+Opens at `http://localhost:8501`. Use the sidebar to configure agent counts, debate rounds, physics domains, and GPD. Enter your phenomenon, optionally upload images or PDFs, and click **Run Analysis**.
+
+![MTF Streamlit GUI](https://i.imgur.com/ADiU2OX.png)
+
+During the run, each phase's output appears as a collapsible panel. When MTF needs your approval or feedback it pauses and shows inline buttons — no terminal required.
+
+### 2. CLI — no code required
 
 ```bash
 mtf "We observe a plateau in longitudinal resistivity near B=3T in a 2D electron gas at T=4K. What could explain this?"
@@ -297,6 +316,7 @@ mtf/
 ├── memory.py           SharedMemory + MemoryEntry
 ├── debate.py           DebateEngine (Anthropic messages.create)
 ├── interface.py        HumanInterface ABC + CLIInterface (rich)
+├── gui.py              StreamlitInterface + browser app (mtf-gui)
 ├── orchestrator.py     MTFOrchestrator.run()
 ├── cli.py              mtf CLI entry point
 ├── agents/
