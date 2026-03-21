@@ -27,6 +27,7 @@ mtf-gui = "mtf.gui:main"
 dev = ["pytest>=8.0", "pytest-asyncio>=0.23", "mypy>=1.9", "ruff>=0.4"]
 gpd = ["get-physics-done>=1.1.0", "mcp>=1.26.0"]
 gui = ["streamlit>=1.35.0"]
+docs = ["sphinx>=7.3", "sphinx-book-theme>=1.1", "myst-parser>=3.0", "sphinx-autodoc-typehints>=2.0"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
