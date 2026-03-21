@@ -1,56 +1,240 @@
 # Agents
 
-All agents except `ImageDigestAgent` extend `BaseAgent`, which prepends a formatted `SharedMemory` context block before every `sdk.query()` call.
+All agents except `ImageDigestAgent` / `FileDigestSubagent` extend `BaseAgent`, which wraps
+`sdk.query()` and prepends a `SharedMemory` context block before every call.
+
+---
+
+## BaseAgent
+
+`BaseAgent` (`mtf/agents/base.py`) is the foundation for all agentic calls.
+
+**`_build_prompt(task, extra_kinds)`**
+
+Calls `memory.format_context(*extra_kinds)` to produce:
+
+```
+=== SHARED CONTEXT ===
+[USER_FEEDBACK] …
+[IMAGE_DATA] …
+[CONVENTIONS] …
+=== END CONTEXT ===
+```
+
+This block is prepended to the `task` string before being sent to `sdk.query()`.  Each
+concrete agent specifies which `MemoryKind` values it needs via `extra_kinds` — agents
+only see the memory entries relevant to their role.
+
+**`_query(task, extra_kinds)`**
+
+Builds the prompt, then iterates over `sdk.query()` chunks collecting text.  The agentic
+loop inside `sdk.query()` handles multi-turn tool use automatically; `_query()` collects
+only final text chunks.
+
+---
+
+## FileDigestSubagent
+
+| | |
+|---|---|
+| **Used by** | `ImageDigestAgent` (spawned once per file) |
+| **API** | `messages.create()` (multimodal, not agentic) |
+| **Memory written** | None (results returned to `ImageDigestAgent`) |
+
+A stateless, leaf-level worker that digests exactly one file.  It does not touch
+`SharedMemory` — the coordinating `ImageDigestAgent` handles storage.
+
+**Processing:**
+
+- **Images** (PNG, JPG, GIF, WebP): sends a content block of type `"image"` with base64
+  source data alongside a text prompt.  The system prompt instructs extraction of: plot type,
+  all axis labels and units and scale, every data series as a Python list of numbers,
+  key quantitative features (peaks, plateaus, slopes, error bars, fit parameters),
+  embedded annotations, and a brief physical interpretation.
+- **PDFs**: sends a content block of type `"document"` with base64 PDF data.  The system
+  prompt asks for: document type, title, authors, physical system and phenomena, key equations
+  (reproduced symbolically with symbol definitions), experimental methods and parameters,
+  all reported numerical values with units, and main conclusions.
+
+The MIME type is detected via `mimetypes.guess_type()`; unrecognised formats default to
+`image/png`.
+
+---
 
 ## ImageDigestAgent
 
 | | |
 |---|---|
 | **Phase** | ⓪ Pre-processing |
-| **API** | `messages.create()` (multimodal) |
+| **API** | `messages.create()` (multimodal, not agentic) |
 | **Memory written** | `IMAGE_DATA` |
 
-Encodes each user image as base64 and calls the Claude vision API to extract plot type, axis labels/units/scale, numerical data series, quantitative features, and annotations. Runs in parallel, one instance per image.
+Coordinates parallel file digestion and optional cross-file synthesis.
+
+**`digest_all(file_paths)`** — called by the orchestrator:
+
+1. Spawns one `FileDigestSubagent` per file, all running concurrently via
+   `asyncio.gather()`.
+2. Stores each digest in `SharedMemory` as `IMAGE_DATA` with `source_file` and
+   `filename` metadata.
+3. If more than one file was provided, issues a third `messages.create()` call
+   (the synthesis call) that receives all individual digests as sections of one
+   user message and produces a unified cross-file analysis.  This synthesis is
+   stored as a separate `IMAGE_DATA` entry with `filename="cross_file_synthesis"`.
+
+The synthesis system prompt asks the model to: summarise the combined experiment,
+consolidate all numerical data (identifying shared axes, flagging contradictions),
+describe physical connections and patterns across files, produce a unified list of
+key quantitative features, and highlight open questions or anomalies.
+
+**Why `messages.create()` and not `sdk.query()`:** The agent SDK does not expose
+multimodal content blocks.  The Anthropic messages API is called directly so that
+image/document blocks can be placed in the content list alongside text blocks.
+
+---
 
 ## LiteratureAgent
 
 | | |
 |---|---|
 | **Phase** | ① Literature |
-| **API** | `sdk.query()` |
+| **API** | `sdk.query()` (agentic) |
 | **Tools** | arxiv search, Semantic Scholar, GPD: `check_error_classes`, `route_protocol` |
+| **Memory context read** | `USER_FEEDBACK`, `IMAGE_DATA`, `CONVENTIONS` |
 | **Memory written** | `LITERATURE` |
 
-Searches arxiv and Semantic Scholar for relevant work. Calls GPD to flag error-prone hypotheses and identify the relevant computation protocol. Classifies each hypothesis by physical basis (first-principles / semi-empirical / purely empirical). Spawns N parallel instances (default 3).
+N instances run concurrently in each debate round (`asyncio.gather()`).
+
+**Agentic loop (inside `sdk.query()`):**
+
+The system prompt instructs a fixed tool-call order:
+
+1. Call `route_protocol` with a description of the phenomenon to identify what
+   computation methodology the relevant papers should follow.
+2. Search arxiv and Semantic Scholar thoroughly, prioritising recent, highly-cited work.
+3. For each proposed hypothesis, call `check_error_classes` to get the top-15 most likely
+   physics error classes — error-prone approaches are flagged in the report.
+
+**Report structure produced:**
+
+- Summary of the phenomenon
+- Most relevant papers with citations
+- Hypotheses ranked by plausibility, each classified by:
+  - Basis: first-principles / semi-empirical / purely empirical
+  - Verification status: experimentally confirmed / theoretical prediction / disputed
+  - Known failure modes (from `check_error_classes`)
+- Key equations or models from the literature
+- Error-prone aspects per hypothesis
+
+The report is stored as `LITERATURE` and returned to the phase for debate.
+
+---
 
 ## FittingAgent
 
 | | |
 |---|---|
 | **Phase** | ② Fitting |
-| **API** | `sdk.query()` |
+| **API** | `sdk.query()` (agentic) |
 | **Tools** | GPD: `route_protocol`, `get_protocol`, `subfield_defaults` |
+| **Memory context read** | `LITERATURE`, `DEBATE`, `USER_FEEDBACK`, `IMAGE_DATA`, `CONVENTIONS` |
 | **Memory written** | `FIT_RESULT` |
 
-Given an approved hypothesis and toolkit data, retrieves the canonical domain protocol from GPD and writes lmfit code that follows its checkpoints. Reports χ², parameters, and protocol compliance. Rate-limited by `asyncio.Semaphore`.
+M instances run per hypothesis, all rate-limited by `asyncio.Semaphore`.
+
+**`identify_needed_toolkit_items(hypothesis)`** — probe call before the main fan-out:
+
+Asks the agent which data items and model functions are needed. Items prefixed with
+`MISSING:` in the response trigger an interactive toolkit-resolution loop in the phase.
+
+**`fit(hypothesis)` — agentic loop:**
+
+The system prompt instructs:
+
+1. Call `route_protocol` with a description of what is being fit.
+2. Call `get_protocol` with the returned protocol name to get the full step-by-step
+   methodology with mandatory checkpoints — used as a blueprint for the fitting code.
+3. Call `subfield_defaults` with the relevant subfield to get canonical conventions
+   (sign, Fourier, natural units, gauge) and embed them in the code.
+4. Write lmfit Python code following the protocol's checkpoints.
+
+The generated code is stripped of markdown fences, then executed by `run_fitting_code()`
+via `exec()` in a namespace seeded with `numpy`, `lmfit`, `scipy`, and the user's `data`
+dict from `ToolkitRegistry`.  The code must assign its output to a variable named `result`.
+
+The `result` dict must contain:
+
+| Key | Meaning |
+|-----|---------|
+| `parameters` | Best-fit parameter values |
+| `uncertainties` | Parameter uncertainties |
+| `chi_squared` | χ² of the fit |
+| `reduced_chi_squared` | Reduced χ² |
+| `assessment` | Narrative quality assessment |
+| `protocol_followed` | Name of the GPD protocol retrieved |
+| `physical_parameter_ranges` | Map of parameter → whether it falls within physical bounds |
+| `protocol_checkpoints_satisfied` | List of checkpoint names that passed |
+
+The fit output and hypothesis text are stored as `FIT_RESULT`.
+
+---
 
 ## ReviewerAgent
 
 | | |
 |---|---|
 | **Phase** | ③ Review |
-| **API** | `sdk.query()` |
+| **API** | `sdk.query()` (agentic) |
 | **Tools** | GPD: `get_checklist`, `run_check`, `dimensional_check`, `limiting_case_check`, `check_error_classes`, `get_detection_strategy`, `lookup_pattern`, `add_pattern` |
+| **Memory context read** | `LITERATURE`, `DEBATE`, `FIT_RESULT`, `USER_FEEDBACK`, `IMAGE_DATA`, `CONVENTIONS`, `PHYSICS_VERDICT` |
 | **Memory written** | `REVIEW` |
 
-Runs GPD's structured verification checks (5.1 dimensional, 5.2 symmetry, 5.3 limiting cases, 5.18 fit-family) against each fit result. Produces **SUPPORTED / PLAUSIBLE / SPECULATIVE / REJECTED** verdicts citing check IDs. Records new error patterns for future sessions.
+K instances run concurrently.  `ReviewerAgent` reads the widest memory context of any
+agent type — it sees everything accumulated across all prior phases.
+
+**Agentic loop (inside `sdk.query()`):**
+
+The system prompt mandates the following sequence:
+
+1. `check_error_classes` — identify the top-15 most relevant error classes to watch for.
+2. `get_checklist` — fetch the domain-specific check list; call once per physics domain
+   and merge the lists if the phenomenon spans multiple domains.
+3. For each fit result, run mandatory checks:
+   - `run_check("5.1", …)` — dimensional consistency
+   - `run_check("5.2", …)` — symmetry requirements
+   - `run_check("5.3", …)` — limiting cases (does the model recover known limits?)
+   - `run_check("5.18", …)` — fit-family mismatch (is the model family appropriate?)
+   - `dimensional_check` — if explicit equations appear in the fit results
+4. `lookup_pattern` — surface previously recorded errors in the same domain/category.
+5. `add_pattern` — record any confirmed new error for future cross-session use.
+
+**Verdict format:**
+
+Each hypothesis receives exactly one verdict label:
+
+> **SUPPORTED** / **PLAUSIBLE** / **SPECULATIVE** / **REJECTED**
+
+with the relevant check IDs cited, e.g.:
+> `REJECTED — check 5.1 FAIL: units of σ inconsistent with RHS`
+
+Hypotheses are ranked by: (1) physics check results, (2) parsimony, (3) first-principles
+basis, (4) chi² last — mirroring the ranking criterion in the debate synthesis.
+
+The review report is stored as `REVIEW`.
+
+---
 
 ## ToolBuilderAgent
 
 | | |
 |---|---|
 | **Phase** | ② Fitting (on demand) |
-| **API** | `sdk.query()` |
+| **API** | `sdk.query()` (agentic) |
 | **Memory written** | `TOOLKIT_DIGEST` |
 
-Invoked when a fitting agent requests toolkit data not pre-registered by the user. Parses raw input (functions, CSVs, code snippets) into `data_items` and `model_items` dicts via LLM-generated `exec()` code, then registers them in `ToolkitRegistry`.
+Invoked only when a fitting agent identifies a required toolkit item that the user supplies
+in a complex form (multi-line function definition, CSV text, datasheet).  The agent writes
+`exec()`-based parsing code to convert the raw input into structured `data_items` and
+`model_items` dicts, then registers them in `ToolkitRegistry`.
+
+If parsing fails, the raw string is stored as a fallback and the phase reports the error.
