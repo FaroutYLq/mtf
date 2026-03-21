@@ -13,7 +13,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **Anthropic API:** direct `anthropic.Anthropic().messages.create()` for debate synthesis and image digestion (multimodal)
 - **Fitting:** `lmfit`, `numpy`, `scipy` — agent-generated code runs via `exec()` in a sandboxed namespace
 - **Literature search:** `arxiv`, `semanticscholar` packages
-- **CLI / UI:** `rich` (panels, prompts, markdown rendering)
+- **CLI / UI:** `rich` (panels, prompts, markdown rendering); `streamlit` (browser GUI, optional)
+- **GUI bridge:** `queue.Queue` pair connecting the async orchestrator thread to Streamlit's reactive rerun loop
 - **Async:** `asyncio.gather()` for agent parallelism; `asyncio.to_thread()` for blocking I/O
 - **Validation:** `pydantic`
 - **Testing:** `pytest`, `pytest-asyncio` (`asyncio_mode = "auto"`), `mypy`, `ruff`
@@ -26,6 +27,7 @@ mtf/
 ├── memory.py               SharedMemory + MemoryEntry + MemoryKind enum
 ├── debate.py               DebateEngine — single Anthropic messages.create() synthesis call
 ├── interface.py            HumanInterface ABC + CLIInterface (rich)
+├── gui.py                  StreamlitInterface + Streamlit app — `mtf-gui` entry point
 ├── orchestrator.py         MTFOrchestrator.run() — sequences all three phases
 ├── cli.py                  `mtf` CLI entry point (argparse)
 ├── agents/
@@ -56,6 +58,9 @@ pip install -e ".[dev]"
 # Install with GPD physics verification
 pip install -e ".[dev,gpd]"
 
+# Install with browser GUI
+pip install -e ".[dev,gui]"
+
 # Lint
 ruff check mtf tests
 
@@ -71,6 +76,9 @@ pytest
 # Run CLI (with optional images)
 mtf "Describe your phenomenon here"
 mtf "Describe your phenomenon here" --images plot1.png plot2.png
+
+# Run browser GUI (opens http://localhost:8501)
+mtf-gui
 
 # Run bundled example
 python examples/run_experiment.py
@@ -91,7 +99,7 @@ Each phase: fan-out agents with `asyncio.gather()` → collect reports → `Deba
 `FittingAgent.fit()` asks the model to write Python code, then `run_fitting_code()` runs it via `exec()` in a namespace pre-populated with `numpy`, `lmfit`, `scipy`, and the user's `data` dict. The code must assign its output to `result`. Markdown fences are stripped before execution.
 
 ### Human Interface
-`HumanInterface` is an ABC. `CLIInterface` wraps `rich` prompts inside `asyncio.to_thread()`. Tests inject `MockInterface` to avoid blocking I/O.
+`HumanInterface` is an ABC. `CLIInterface` wraps `rich` prompts inside `asyncio.to_thread()`. `StreamlitInterface` (`mtf/gui.py`) bridges the async orchestrator to Streamlit's reactive rerun model via two `queue.Queue` objects: `ui_queue` carries `("show"|"ask"|"confirm"|"done"|"error", payload, reply_q)` messages from the orchestrator thread to the Streamlit thread; each interactive message carries its own `reply_q` so the orchestrator blocks on `reply_q.get()` until the user responds. The orchestrator runs in a daemon thread with its own event loop; Streamlit polls `ui_queue` on each rerun. Tests inject `MockInterface` to avoid blocking I/O.
 
 ### Concurrency
 Fitting agents are rate-limited by `asyncio.Semaphore(config.fitting_semaphore_limit)` (default 6) to avoid overwhelming the API when `fitting_scope="per_hypothesis"` spawns `N_hypotheses × M` concurrent agents.
