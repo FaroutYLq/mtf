@@ -11,6 +11,7 @@ extensions = [
     "sphinx.ext.viewcode",
     "sphinx_autodoc_typehints",
     "myst_parser",
+    "sphinxcontrib.mermaid",
 ]
 
 myst_enable_extensions = ["colon_fence", "deflist"]

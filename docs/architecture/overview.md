@@ -4,29 +4,63 @@ MTF runs four sequential phases. Each phase fans out parallel agents, collects t
 
 ## Pipeline
 
-```
-User Input (phenomenon + images + toolkit data)
-    │
-    ▼
-⓪ IMAGE DIGEST
-    ImageDigestAgent × N_images  →  SharedMemory[IMAGE_DATA]
-    │
-    ▼
-① LITERATURE PHASE
-    Lock GPD conventions  →  LiteratureAgent × N  →  DebateEngine
-    User approval loop (up to max_debate_rounds)
-    │  approved hypotheses
-    ▼
-② FITTING PHASE  (per hypothesis)
-    Toolkit check  →  FittingAgent × M  →  DebateEngine (physics-first ranking)
-    User approval loop
-    │  fit results
-    ▼
-③ REVIEW PHASE
-    ReviewerAgent × K  →  DebateEngine (physics-first ranking)
-    │
-    ▼
-Final Report
+```{mermaid}
+flowchart TD
+    Input(["📋 User Input\nphenomenon description + images + toolkit data"])
+
+    subgraph GPD ["🔧 GPD MCP SERVERS (optional)"]
+        direction TB
+        GV["verification\nchecks 5.1–5.19"]
+        GE["errors\n104 error classes"]
+        GP["protocols\n47+ domain protocols"]
+        GC["conventions\n18 subfields"]
+        GPat["patterns\ncross-session memory"]
+    end
+
+    subgraph LIT ["① LITERATURE PHASE"]
+        direction TB
+        LC["Lock conventions\nvia GPD subfield_defaults"]
+        L["L1 · L2 · L3\nN parallel agents\narxiv + Semantic Scholar\n+ GPD: check_error_classes, route_protocol"]
+        LD["🔀 Debate\nsynthesis call"]
+        LU{"User approval"}
+        LC --> L --> LD --> LU
+        LU -->|"reject: add feedback"| L
+    end
+
+    subgraph FIT ["② FITTING PHASE  —  per approved hypothesis"]
+        direction TB
+        FT["toolkit check\n(request missing data from user)"]
+        F["F1 · F2 · F3\nM parallel agents\nlmfit + numpy/scipy\n+ GPD: route_protocol, get_protocol, subfield_defaults"]
+        FD["🔀 Debate\nphysics-first ranking"]
+        FU{"User approval"}
+        FT --> F --> FD --> FU
+    end
+
+    subgraph REV ["③ REVIEW PHASE"]
+        direction TB
+        R["R1 · R2 · R3\nK parallel agents\n+ GPD: get_checklist, run_check, check_error_classes,\nlookup_pattern, add_pattern"]
+        RD["🔀 Debate\nphysics-first ranking"]
+        R --> RD
+    end
+
+    GPD -.->|"tools"| L
+    GPD -.->|"tools"| F
+    GPD -.->|"tools"| R
+
+    Report(["📄 Final Report"])
+
+    subgraph IMG ["⓪ IMAGE DIGEST"]
+        direction TB
+        I["ImageDigestAgent\nClaude vision API\nparallel per image"]
+        IM["IMAGE_DATA\nin SharedMemory"]
+        I --> IM
+    end
+
+    Input --> IMG
+    IMG --> LIT
+    LIT -->|"approved hypotheses"| FIT
+    FIT --> REV
+    REV --> Report
 ```
 
 ## Key design decisions
