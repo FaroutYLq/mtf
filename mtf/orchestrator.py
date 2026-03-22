@@ -5,7 +5,6 @@ from __future__ import annotations
 import asyncio
 import re
 from pathlib import Path
-from typing import TYPE_CHECKING
 
 from mtf.agents.image_digest import ImageDigestAgent
 from mtf.config import MTFConfig
@@ -17,9 +16,6 @@ from mtf.phases.literature_phase import run_literature_phase
 from mtf.phases.review_phase import run_review_phase
 from mtf.toolkit.registry import ToolkitRegistry
 from mtf.tools.gpd_mcp import GPDMCPClient
-
-if TYPE_CHECKING:
-    pass
 
 # Known GPD physics domain identifiers used for auto-classification.
 _KNOWN_DOMAINS: frozenset[str] = frozenset([

@@ -100,6 +100,10 @@ class DebateEngine:
         summary: str = response.content[0].text  # type: ignore[index]
 
         # Addition 8: dimensional check postscript — objective, no second LLM call.
+        # The postscript is intentionally embedded in the DEBATE memory entry so that
+        # downstream agents reading MemoryKind.DEBATE see the objective check alongside
+        # the synthesis.  The same result is also stored as PHYSICS_VERDICT for targeted
+        # filtering in the review phase.
         if self._gpd is not None and phase in ("fitting", "review"):
             summary = await self._append_dimensional_check(summary, phase)
 

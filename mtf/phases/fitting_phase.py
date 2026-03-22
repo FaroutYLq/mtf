@@ -64,12 +64,23 @@ async def _run_phase_physics_checks(
     hypotheses: list[str],
     memory: SharedMemory,
     gpd: Any,
+    n_fitting: int = 1,
 ) -> None:
     """Run dimensional (5.1) and limiting-case (5.3) checks on fit results (Addition 2).
 
     Writes non-empty results as PHYSICS_VERDICT entries so DebateEngine.synthesize()
     picks them up for the fitting synthesis.
+
+    ``n_fitting`` is the number of fitting agents per hypothesis; it is used to map
+    each report back to its originating hypothesis.  Reports are ordered
+    [hyp0*n_fitting, hyp1*n_fitting, ...] in both ``per_hypothesis`` and ``all`` modes,
+    so ``hypotheses[i // n_fitting]`` gives the correct hypothesis for report ``i``.
     """
+    if gpd is None or not hypotheses or not fit_reports:
+        return
+
+    n_hyp = len(hypotheses)
+
     async def run_checks(hyp: str, report: str) -> None:
         results = await asyncio.gather(
             asyncio.to_thread(
@@ -90,9 +101,8 @@ async def _run_phase_physics_checks(
                     hypothesis=hyp[:200],
                 )
 
-    n = len(hypotheses)
     await asyncio.gather(*(
-        run_checks(hypotheses[i % n], report)
+        run_checks(hypotheses[min(i // n_fitting, n_hyp - 1)], report)
         for i, report in enumerate(fit_reports)
     ))
 
@@ -256,8 +266,9 @@ async def run_fitting_phase(
         all_fit_reports = [str(r) for r in results]
 
     # Run phase-level physics checks before synthesis so PHYSICS_VERDICT is populated (Addition 2)
-    if gpd is not None:
-        await _run_phase_physics_checks(all_fit_reports, hypotheses, memory, gpd)
+    await _run_phase_physics_checks(
+        all_fit_reports, hypotheses, memory, gpd, n_fitting=config.n_fitting
+    )
 
     synthesis = await debate_engine.synthesize(
         all_fit_reports,

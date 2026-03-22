@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from typing import TYPE_CHECKING, Any
 
 from mtf.agents.base import BaseAgent
@@ -145,8 +146,10 @@ class FittingAgent(BaseAgent):
                 else "condensed_matter"
             )
             for attempt in range(self._config.fitting_max_convention_retries + 1):
-                check_result = self._gpd.call(
-                    "conventions", "convention_check",
+                # Use asyncio.to_thread so the blocking MCP call doesn't stall the event loop
+                # when multiple fitting agents run concurrently under the semaphore.
+                check_result = await asyncio.to_thread(
+                    self._gpd.call, "conventions", "convention_check",
                     expression=code[:2000], domain=domain,
                 )
                 if check_result and "FAIL" in check_result.upper():

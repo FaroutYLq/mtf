@@ -422,12 +422,33 @@ async def test_fitting_phase_populates_physics_verdict():
 
 @pytest.mark.asyncio
 async def test_fitting_phase_no_gpd_skips_checks():
-    """run_fitting_phase with gpd=None leaves PHYSICS_VERDICT empty."""
+    """_run_phase_physics_checks with gpd=None writes no PHYSICS_VERDICT entries."""
     from mtf.phases.fitting_phase import _run_phase_physics_checks
 
     memory = SharedMemory()
-    # Should not be called at all — but if called with None it would error,
-    # so we verify the phase gate (gpd is not None) works by not calling the function.
+    await _run_phase_physics_checks(
+        fit_reports=["some fit report"],
+        hypotheses=["some hypothesis"],
+        memory=memory,
+        gpd=None,
+    )
+    assert len(memory.filter(MemoryKind.PHYSICS_VERDICT)) == 0
+
+
+@pytest.mark.asyncio
+async def test_fitting_phase_checks_empty_hypotheses_safe():
+    """_run_phase_physics_checks with empty hypotheses list does not raise."""
+    from mtf.phases.fitting_phase import _run_phase_physics_checks
+
+    memory = SharedMemory()
+    gpd = MockGPD(responses={"verification/run_check": "PASS"})
+    # Should not raise ZeroDivisionError
+    await _run_phase_physics_checks(
+        fit_reports=["report 1", "report 2"],
+        hypotheses=[],
+        memory=memory,
+        gpd=gpd,
+    )
     assert len(memory.filter(MemoryKind.PHYSICS_VERDICT)) == 0
 
 
@@ -500,7 +521,7 @@ async def test_plausibility_screen_flags_failing_hypothesis():
         "verification/limiting_case_check": "CRITICAL FAIL: does not reduce to classical limit",
     })
 
-    await _screen_hypothesis_plausibility(
+    rejected = await _screen_hypothesis_plausibility(
         hypothesis_candidates=["Hypothesis: dark energy as quantum foam"],
         config=config,
         memory=memory,
@@ -517,6 +538,9 @@ async def test_plausibility_screen_flags_failing_hypothesis():
     assert len(verdicts) == 1
     assert verdicts[0].metadata.get("source") == "limiting_case_screen"
 
+    # Returns the FAIL hypothesis in the rejected set
+    assert len(rejected) == 1
+
 
 @pytest.mark.asyncio
 async def test_plausibility_screen_disabled_by_config():
@@ -528,7 +552,7 @@ async def test_plausibility_screen_disabled_by_config():
     interface = MockInterface()
     gpd = MockGPD(responses={"verification/limiting_case_check": "FAIL"})
 
-    await _screen_hypothesis_plausibility(
+    rejected = await _screen_hypothesis_plausibility(
         hypothesis_candidates=["Hypothesis: X"],
         config=config,
         memory=memory,
@@ -538,6 +562,31 @@ async def test_plausibility_screen_disabled_by_config():
 
     assert len(memory.filter(MemoryKind.PHYSICS_VERDICT)) == 0
     assert interface.shown == []
+    assert rejected == set()
+
+
+@pytest.mark.asyncio
+async def test_auto_reject_physics_failures_filters_hypotheses():
+    """auto_reject_physics_failures=True removes CRITICAL-FAIL hypotheses from hyp_lines."""
+    from mtf.phases.literature_phase import _screen_hypothesis_plausibility
+
+    memory = SharedMemory()
+    config = MTFConfig(literature_plausibility_screen=True, auto_reject_physics_failures=True)
+    interface = MockInterface()
+    gpd = MockGPD(responses={
+        "verification/limiting_case_check": "CRITICAL FAIL: violates causality",
+    })
+
+    rejected = await _screen_hypothesis_plausibility(
+        hypothesis_candidates=["Hypothesis: tachyonic condensate", "Hypothesis: BCS pairing"],
+        config=config,
+        memory=memory,
+        interface=interface,
+        gpd=gpd,
+    )
+
+    # Both candidates return CRITICAL FAIL, so both are rejected
+    assert len(rejected) == 2
 
 
 # ---------------------------------------------------------------------------

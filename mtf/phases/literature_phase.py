@@ -36,10 +36,14 @@ async def _screen_hypothesis_plausibility(
     memory: SharedMemory,
     interface: HumanInterface,
     gpd: Any,
-) -> None:
-    """Run limiting_case_check per candidate hypothesis and show plausibility badges (Addition 5)."""
+) -> set[str]:
+    """Run limiting_case_check per candidate hypothesis and show plausibility badges (Addition 5).
+
+    Returns the set of CRITICAL-FAIL hypothesis texts.  The caller uses this to
+    optionally filter hyp_lines when ``config.auto_reject_physics_failures`` is True.
+    """
     if not hypothesis_candidates or not config.literature_plausibility_screen:
-        return
+        return set()
 
     async def check_one(hyp: str) -> tuple[str, str]:
         result = await asyncio.to_thread(
@@ -52,11 +56,13 @@ async def _screen_hypothesis_plausibility(
     results = await asyncio.gather(*(check_one(h) for h in hypothesis_candidates))
 
     lines = ["**Hypothesis Plausibility Screen**\n"]
+    rejected: set[str] = set()
     for hyp, result in results:
         if not result:
             badge = "[UNKNOWN]"
         elif "CRITICAL" in result.upper() and "FAIL" in result.upper():
             badge = "[FAIL]"
+            rejected.add(hyp)
         elif "FAIL" in result.upper() or "WARN" in result.upper():
             badge = "[WARN]"
         else:
@@ -71,6 +77,7 @@ async def _screen_hypothesis_plausibility(
             )
 
     await interface.show("\n".join(lines), title="MTF: Plausibility Screen")
+    return rejected
 
 
 async def run_literature_phase(
@@ -151,7 +158,10 @@ async def run_literature_phase(
 
         await interface.show(synthesis, title=f"Literature Synthesis (round {round_num})")
 
-        # Extract candidate hypotheses for plausibility screening (Addition 5)
+        # Extract candidate hypotheses for plausibility screening (Addition 5).
+        # Skip the screen when no keyword-matching lines are found rather than passing
+        # raw synthesis text as an expression — that produces misleading verdicts.
+        rejected: set[str] = set()
         if gpd is not None:
             hyp_candidates = [
                 line.strip()
@@ -160,10 +170,11 @@ async def run_literature_phase(
                     kw in line.lower()
                     for kw in ("hypothesis", "proposed", "model", "theory")
                 )
-            ] or [synthesis[:500]]
-            await _screen_hypothesis_plausibility(
-                hyp_candidates, config, memory, interface, gpd
-            )
+            ]
+            if hyp_candidates:
+                rejected = await _screen_hypothesis_plausibility(
+                    hyp_candidates, config, memory, interface, gpd
+                )
 
         approved = await interface.confirm("Do you approve these hypotheses?")
         if approved:
@@ -178,6 +189,10 @@ async def run_literature_phase(
             if not hyp_lines:
                 # Fall back: store synthesis as one hypothesis
                 hyp_lines = [synthesis]
+            # Optionally filter CRITICAL-FAIL hypotheses (config.auto_reject_physics_failures)
+            if config.auto_reject_physics_failures and rejected:
+                filtered = [h for h in hyp_lines if h not in rejected]
+                hyp_lines = filtered if filtered else hyp_lines  # never return empty
             for hyp in hyp_lines:
                 memory.add(MemoryKind.HYPOTHESIS, hyp)
             return hyp_lines
