@@ -15,9 +15,18 @@ from mtf.toolkit.registry import ToolkitRegistry
 
 
 def _looks_complex(value: str) -> bool:
-    """Return True when the input is too rich for a plain eval()."""
-    triggers = ("\n", "def ", "class ", "import ", "->", "lambda ", "csv", "\t")
-    return any(t in value for t in triggers)
+    """Return True when the input is too rich for a plain eval().
+
+    Uses the stdlib compiler to check whether *value* is a valid single
+    expression.  If ``compile()`` with mode ``'eval'`` raises a
+    ``SyntaxError`` the string cannot be safely evaluated and the
+    ToolBuilderAgent slow path is needed.
+    """
+    try:
+        compile(value, "<string>", "eval")
+        return False
+    except SyntaxError:
+        return True
 
 
 async def _prefetch_fitting_warnings(
