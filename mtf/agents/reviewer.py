@@ -38,7 +38,17 @@ with the relevant check IDs cited (e.g. "REJECTED — check 5.1 FAIL: units inco
 
 Rank hypotheses by: (1) physics check results, (2) parsimony, (3) first-principles
 basis, (4) chi² last. Be rigorous, constructive, and cite specific evidence from the
-provided context."""
+provided context.
+
+If `[FITTING_SKIPPED]` appears in your context, the fitting phase was skipped and no
+`[FIT_RESULT]` entries exist for the current run. In this mode:
+- Skip steps 3–4 (fit-result checks and dimensional_check on fit results).
+- Instead, read all `[QUALITATIVE_EVAL]` entries and assess whether the qualitative
+  verdicts are well-supported by the available literature and image data.
+- Do not rank by chi² — rank by: (1) physics check results on theoretical arguments,
+  (2) parsimony, (3) first-principles basis.
+- Your recommendation should focus on what data collection would be needed to upgrade
+  qualitative assessments to quantitative fits."""
 
 
 class ReviewerAgent(BaseAgent):
@@ -74,6 +84,8 @@ class ReviewerAgent(BaseAgent):
                 MemoryKind.IMAGE_DATA,
                 MemoryKind.CONVENTIONS,
                 MemoryKind.PHYSICS_VERDICT,
+                MemoryKind.QUALITATIVE_EVAL,
+                MemoryKind.FITTING_SKIPPED,
             ),
         )
         self._memory.add(

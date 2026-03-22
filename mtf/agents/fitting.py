@@ -102,7 +102,7 @@ class FittingAgent(BaseAgent):
                 MemoryKind.DOMAIN_PATTERNS,
             ),
         )
-        lines = [l.strip() for l in response.splitlines() if l.strip()]
+        lines = [line.strip() for line in response.splitlines() if line.strip()]
         return lines
 
     async def fit(self, hypothesis: str) -> dict[str, object]:

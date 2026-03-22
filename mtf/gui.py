@@ -107,6 +107,8 @@ def _streamlit_app() -> None:
         n_fitting = st.slider("Fitting agents", 1, 6, 3)
         n_reviewer = st.slider("Reviewer agents", 1, 6, 3)
         max_debate_rounds = st.slider("Max debate rounds", 1, 5, 3)
+        skip_fitting = st.checkbox("Skip fitting phase (qualitative evaluation only)", value=False)
+        n_qualitative = st.slider("Qualitative evaluation agents", 1, 6, 3)
 
         physics_domain_options = [
             "condensed_matter",
@@ -155,10 +157,12 @@ def _streamlit_app() -> None:
             config = MTFConfig(
                 n_literature=n_literature,
                 n_fitting=n_fitting,
+                n_qualitative=n_qualitative,
                 n_reviewer=n_reviewer,
                 max_debate_rounds=max_debate_rounds,
                 physics_domains=physics_domains or ["condensed_matter"],
                 enable_gpd_mcp=enable_gpd,
+                fitting_enabled=not skip_fitting,
             )
 
             ui_queue: "queue.Queue[tuple[str, Any, Any]]" = queue.Queue()

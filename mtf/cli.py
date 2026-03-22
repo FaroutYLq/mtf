@@ -22,6 +22,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     p.add_argument("--n-literature", type=int, default=3)
     p.add_argument("--n-fitting", type=int, default=3)
+    p.add_argument("--n-qualitative", type=int, default=3)
     p.add_argument("--n-reviewer", type=int, default=3)
     p.add_argument("--literature-model", default="claude-opus-4-6")
     p.add_argument("--fitting-model", default="claude-opus-4-6")
@@ -45,6 +46,11 @@ def build_parser() -> argparse.ArgumentParser:
         metavar="DOMAIN",
         help="Physics domains for GPD conventions and checklists, e.g. "
         "'condensed_matter qft' for cross-domain phenomena (default: condensed_matter)",
+    )
+    p.add_argument(
+        "--no-fitting",
+        action="store_true",
+        help="Skip the numerical fitting phase and run a qualitative hypothesis evaluation instead",
     )
     p.add_argument(
         "--no-gpd",
@@ -77,6 +83,7 @@ def main() -> None:
     gpd_kwargs: dict[str, object] = {
         "enable_gpd_mcp": not args.no_gpd,
         "physics_domains": args.physics_domains,
+        "fitting_enabled": not args.no_fitting,
     }
     if args.gpd_servers is not None:
         gpd_kwargs["gpd_servers"] = args.gpd_servers
@@ -84,6 +91,7 @@ def main() -> None:
     config = MTFConfig(
         n_literature=args.n_literature,
         n_fitting=args.n_fitting,
+        n_qualitative=args.n_qualitative,
         n_reviewer=args.n_reviewer,
         literature_model=args.literature_model,
         fitting_model=args.fitting_model,

@@ -22,6 +22,8 @@ class MemoryKind(str, Enum):
     FITTING_WARNINGS = "fitting_warnings"  # pre-dispatch pitfall warnings from pattern library + error classes
     DOMAIN_PATTERNS = "domain_patterns"    # cross-session patterns pre-fetched at literature phase start
     DOMAIN_CLASSIFICATION = "domain_classification"  # auto-detected domain classification (audit trail)
+    QUALITATIVE_EVAL = "qualitative_eval"  # qualitative hypothesis evaluation (used when fitting is skipped)
+    FITTING_SKIPPED = "fitting_skipped"    # marker written when --no-fitting is active
 
 
 @dataclass

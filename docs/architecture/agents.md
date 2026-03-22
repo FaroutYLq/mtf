@@ -197,6 +197,29 @@ The fit output and hypothesis text are stored as `FIT_RESULT`.
 
 ---
 
+## QualitativeEvaluationAgent
+
+| | |
+|---|---|
+| **Phase** | ② Qualitative Evaluation (when `--no-fitting` is used) |
+| **API** | `sdk.query()` (agentic) |
+| **Tools** | GPD: `get_checklist`, `run_check`, `dimensional_check`, `limiting_case_check`, `check_error_classes`, `get_detection_strategy`, `lookup_pattern`, `add_pattern` |
+| **Memory context read** | `IMAGE_DATA`, `LITERATURE`, `DEBATE`, `USER_FEEDBACK`, `CONVENTIONS`, `PHYSICS_VERDICT` |
+| **Memory written** | `QUALITATIVE_EVAL` |
+
+Used instead of `FittingAgent` when the pipeline runs with `--no-fitting`. N instances run
+concurrently. Each evaluates all hypotheses against established theory, literature context,
+and image-extracted data — without numerical fitting. For each hypothesis, the agent produces:
+a theoretical plausibility assessment, expected observational signatures, the specific data
+that would be needed to upgrade the assessment to a quantitative fit, a verdict
+(SUPPORTED / PLAUSIBLE / SPECULATIVE / REJECTED), and the single most decisive measurement
+that would confirm or refute it. Results are synthesized via
+`DebateEngine.synthesize(phase="qualitative")` and stored as `QUALITATIVE_EVAL`. The
+`ReviewerAgent` reads `QUALITATIVE_EVAL` in its `extra_kinds` so the review phase adapts its
+tone accordingly.
+
+---
+
 ## ReviewerAgent
 
 | | |
@@ -204,7 +227,7 @@ The fit output and hypothesis text are stored as `FIT_RESULT`.
 | **Phase** | ③ Review |
 | **API** | `sdk.query()` (agentic) |
 | **Tools** | GPD: `get_checklist`, `run_check`, `dimensional_check`, `limiting_case_check`, `check_error_classes`, `get_detection_strategy`, `lookup_pattern`, `add_pattern` |
-| **Memory context read** | `LITERATURE`, `DEBATE`, `FIT_RESULT`, `USER_FEEDBACK`, `IMAGE_DATA`, `CONVENTIONS`, `PHYSICS_VERDICT` |
+| **Memory context read** | `LITERATURE`, `DEBATE`, `FIT_RESULT`, `USER_FEEDBACK`, `IMAGE_DATA`, `CONVENTIONS`, `PHYSICS_VERDICT`, `QUALITATIVE_EVAL`, `FITTING_SKIPPED` |
 | **Memory written** | `REVIEW` |
 
 K instances run concurrently.  `ReviewerAgent` reads the widest memory context of any
