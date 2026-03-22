@@ -21,6 +21,7 @@ mtf   # interactive mode — you are prompted for everything
 | `--image-digest-model` | `claude-opus-4-6` | Model for image digestion |
 | `--images` | _(none)_ | Image files to digest (PNG, JPG, GIF, WebP) |
 | `--physics-domains` | `condensed_matter` | GPD physics domains (space-separated) |
+| `--no-fitting` | _(off)_ | Skip quantitative fitting; run qualitative hypothesis evaluation instead |
 | `--no-gpd` | _(off)_ | Disable GPD MCP physics verification |
 | `--gpd-servers` | _(all)_ | GPD servers to start |
 

@@ -31,15 +31,22 @@ flowchart TD
         LU -->|"reject: add feedback"| L
     end
 
-    subgraph FIT ["② FITTING PHASE  —  per approved hypothesis"]
+    subgraph FIT ["② FITTING / QUALITATIVE EVALUATION PHASE"]
         direction TB
-        FW["Pre-fetch FITTING_WARNINGS\nlookup_pattern + check_error_classes per hypothesis"]
-        FT["toolkit check\n(request missing data from user)"]
-        F["F1 · F2 · F3\nM parallel agents\nlmfit + numpy/scipy\n+ GPD: route_protocol, get_protocol,\nsubfield_defaults, convention_check, add_pattern"]
-        FC["Phase physics checks\nrun_check 5.1 + 5.3 per fit result → PHYSICS_VERDICT"]
-        FD["🔀 Debate\nphysics-first ranking + dimensional check postscript"]
+        FitChoice{"--no-fitting?"}
+        FW["Pre-fetch FITTING_WARNINGS"]
+        FT["toolkit check"]
+        F["F1 · F2 · F3\nM parallel fitting agents\nlmfit + numpy/scipy + GPD tools"]
+        FC["Phase physics checks → PHYSICS_VERDICT"]
+        FD["🔀 Debate (fitting)"]
         FU{"User approval"}
+        QE["Q1 · Q2 · Q3\nN parallel qualitative eval agents\n+ same GPD tools as ReviewerAgent"]
+        QD["🔀 Debate (qualitative)"]
+        QU{"User approval"}
+        FitChoice -->|"fitting enabled (default)"| FW
         FW --> FT --> F --> FC --> FD --> FU
+        FitChoice -->|"--no-fitting"| QE
+        QE --> QD --> QU
     end
 
     subgraph REV ["③ REVIEW PHASE"]
@@ -252,6 +259,28 @@ dimensional check postscript (stored as both part of `DEBATE` and as `PHYSICS_VE
 The fitting synthesis is shown to the user.  If rejected, feedback is stored and the pipeline
 continues regardless (there is no retry loop in the fitting phase).
 
+### No-Fitting Mode (`--no-fitting`)
+
+When `--no-fitting` is passed (or `config.fitting_enabled = False`), the fitting phase is
+replaced by a **qualitative evaluation phase**.  `N` `QualitativeEvaluationAgent` instances
+run concurrently via `asyncio.gather()`, receiving the same GPD tools as `ReviewerAgent`.
+
+Each agent evaluates all approved hypotheses against:
+- Established physical theory and first-principles arguments
+- Literature context accumulated in `LITERATURE` and `DEBATE` memory entries
+- Quantitative features extracted from user-supplied images (`IMAGE_DATA`)
+
+For each hypothesis the agent produces a verdict (SUPPORTED / PLAUSIBLE / SPECULATIVE /
+REJECTED), the specific numerical data that would be needed to upgrade to a quantitative
+fit, and the single most decisive confirming or refuting measurement.
+
+Results are synthesized via `DebateEngine.synthesize(phase="qualitative")`, stored as
+`QUALITATIVE_EVAL`, and a `FITTING_SKIPPED` flag is written to memory.  `ReviewerAgent`
+reads both kinds in its `extra_kinds` so the review phase adapts its report accordingly.
+
+The qualitative phase runs an approval loop (same as the fitting phase); rejected rounds
+store user feedback and repeat.
+
 ---
 
 ## Phase 3: Review
@@ -352,11 +381,13 @@ mtf/
 │   ├── image_digest.py     ImageDigestAgent + FileDigestSubagent
 │   ├── literature.py       LiteratureAgent
 │   ├── fitting.py          FittingAgent
+│   ├── qualitative.py      QualitativeEvaluationAgent (--no-fitting mode)
 │   ├── reviewer.py         ReviewerAgent
 │   └── tool_builder.py     ToolBuilderAgent
 ├── phases/
 │   ├── literature_phase.py convention lock + debate loop + approval gate
 │   ├── fitting_phase.py    toolkit resolution + fan-out + debate
+│   ├── qualitative_phase.py  fan-out qualitative eval + debate (--no-fitting mode)
 │   └── review_phase.py     fan-out + final debate
 ├── tools/
 │   ├── arxiv_search.py     sdk.Tool wrapping arxiv.Client

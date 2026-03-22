@@ -38,6 +38,8 @@ class MemoryEntry:
 | `DOMAIN_PATTERNS` | Literature phase (GPD) | Cross-session convention-pitfall patterns pre-fetched before the first literature fan-out via `lookup_pattern(category="convention-pitfall")`.  Carries `domain` and `source` metadata. |
 | `DOMAIN_CLASSIFICATION` | `MTFOrchestrator._classify_domains()` | Audit trail of auto-detected physics domains when `config.auto_detect_domains=True`.  Records either the detected list or a fallback notice.  Informational only — not consumed by agents via `extra_kinds`. |
 | `TOOLKIT_DIGEST` | `ToolBuilderAgent` | Summary of data and model items parsed from complex user-supplied input by the tool-builder agent. |
+| `QUALITATIVE_EVAL` | `QualitativeEvaluationAgent` | Qualitative hypothesis evaluation report produced when `--no-fitting` is used. Contains per-hypothesis SUPPORTED/PLAUSIBLE/SPECULATIVE/REJECTED verdicts based on theory and image data, without numerical fitting. Read by `ReviewerAgent`. |
+| `FITTING_SKIPPED` | Qualitative phase | Flag entry written when the fitting phase is skipped. Content: `"Fitting phase was skipped (--no-fitting). Qualitative evaluation substituted."` Read by `ReviewerAgent` for context. |
 
 ---
 
@@ -76,7 +78,8 @@ Task: Investigate the following experimental phenomenon …
 | `LiteratureAgent.investigate()` | `USER_FEEDBACK`, `IMAGE_DATA`, `CONVENTIONS`, `DOMAIN_PATTERNS` |
 | `FittingAgent.identify_needed_toolkit_items()` | `LITERATURE`, `DEBATE`, `IMAGE_DATA`, `CONVENTIONS`, `FITTING_WARNINGS`, `DOMAIN_PATTERNS` |
 | `FittingAgent.fit()` | `LITERATURE`, `DEBATE`, `USER_FEEDBACK`, `IMAGE_DATA`, `CONVENTIONS`, `FITTING_WARNINGS`, `DOMAIN_PATTERNS` |
-| `ReviewerAgent.review()` | `LITERATURE`, `DEBATE`, `FIT_RESULT`, `USER_FEEDBACK`, `IMAGE_DATA`, `CONVENTIONS`, `PHYSICS_VERDICT` |
+| `QualitativeEvaluationAgent.evaluate()` | `IMAGE_DATA`, `LITERATURE`, `DEBATE`, `USER_FEEDBACK`, `CONVENTIONS`, `PHYSICS_VERDICT`, `FITTING_WARNINGS` |
+| `ReviewerAgent.review()` | `LITERATURE`, `DEBATE`, `FIT_RESULT`, `USER_FEEDBACK`, `IMAGE_DATA`, `CONVENTIONS`, `PHYSICS_VERDICT`, `QUALITATIVE_EVAL`, `FITTING_SKIPPED` |
 
 `DebateEngine.synthesize()` always calls `memory.format_context()` with no arguments,
 receiving all entries regardless of kind, plus it explicitly appends `CONVENTIONS` and
@@ -102,8 +105,13 @@ Entries accumulate in chronological order within a single pipeline run:
 [USER_FEEDBACK]    0 or more, one per rejection         (phase 1)
 [DEBATE]           one per round (phase="literature")   (phase 1)
 [HYPOTHESIS]       one per approved hypothesis line     (phase 1 approval)
+# Fitting path (default):
 [FIT_RESULT]       M × N_hypotheses entries             (phase 2)
 [DEBATE]           one (phase="fitting")                (phase 2)
+# Qualitative path (--no-fitting):
+[QUALITATIVE_EVAL] N entries, one per eval agent        (phase 2)
+[FITTING_SKIPPED]  one flag entry                       (phase 2)
+[DEBATE]           one (phase="qualitative")            (phase 2)
 [REVIEW]           K entries, one per reviewer          (phase 3)
 [PHYSICS_VERDICT]  0 or more                            (phase 3)
 [DEBATE]           one (phase="review")                 (phase 3)
