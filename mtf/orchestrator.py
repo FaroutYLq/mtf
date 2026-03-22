@@ -6,6 +6,7 @@ import asyncio
 import re
 from pathlib import Path
 
+from mtf.agents.followup import FollowUpChatAgent
 from mtf.agents.image_digest import ImageDigestAgent
 from mtf.config import MTFConfig
 from mtf.debate import DebateEngine
@@ -203,4 +204,46 @@ class MTFOrchestrator:
             if gpd is not None:
                 gpd.close()
 
+        # Follow-up chat runs outside the try/finally block so that a chat error
+        # cannot mask a successfully completed run or interfere with GPD cleanup.
+        await self._run_followup_chat()
+
         return final_report
+
+    async def _run_followup_chat(self) -> None:
+        """Interactive follow-up Q&A loop after the final report is shown.
+
+        Creates a single FollowUpChatAgent with full shared-memory context and
+        loops until the user submits an empty input or types 'exit' / 'quit'.
+        API errors on individual questions are caught and displayed rather than
+        propagated, so a transient failure cannot abort the session.
+        """
+        wants_chat = await self._interface.confirm(
+            "Would you like to ask follow-up questions about the analysis?"
+        )
+        if not wants_chat:
+            await self._interface.show(
+                "Follow-up chat skipped.", title="MTF: Follow-up Chat"
+            )
+            return
+
+        agent = FollowUpChatAgent(self._config, self._memory)
+        await self._interface.show(
+            "You can now ask follow-up questions about the analysis. "
+            "Type an empty line or **exit** to finish.",
+            title="MTF: Follow-up Chat",
+        )
+
+        while True:
+            question = await self._interface.ask("Your question")
+            if not question.strip() or question.strip().lower() in {"exit", "quit"}:
+                break
+            try:
+                answer = await agent.chat(question.strip())
+            except Exception as exc:  # noqa: BLE001
+                await self._interface.show(
+                    f"Error getting answer: {exc}\n\nPlease try again.",
+                    title="MTF: Follow-up Chat",
+                )
+                continue
+            await self._interface.show(answer, title="MTF: Follow-up")

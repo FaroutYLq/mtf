@@ -289,6 +289,30 @@ Runs concurrently with `ReviewerAgent` instances inside the review phase. Propos
 
 ---
 
+## FollowUpChatAgent
+
+| | |
+|---|---|
+| **Phase** | ④ Follow-up Chat (post-report, optional) |
+| **API** | `sdk.query()` (agentic, no tools) |
+| **Memory context read** | `LITERATURE`, `DEBATE`, `HYPOTHESIS`, `FIT_RESULT`, `REVIEW`, `PROPOSALS`, `USER_FEEDBACK`, `IMAGE_DATA`, `CONVENTIONS`, `PHYSICS_VERDICT`, `FITTING_WARNINGS`, `QUALITATIVE_EVAL`, `DOMAIN_PATTERNS`, `FITTING_SKIPPED`, `TOOLKIT_DIGEST` |
+| **Memory written** | None |
+
+Created by `MTFOrchestrator._run_followup_chat()` after the final report is shown.  A single
+instance handles the entire Q&A session; no tools are provided because the full `SharedMemory`
+context already contains all analysis results.
+
+**Multi-turn memory:** `FollowUpChatAgent` maintains a local `_history` list.  Each `chat()`
+call prepends the accumulated `User: … / Assistant: …` dialogue to the task string before
+calling `_query()`, giving the agent conversational memory across turns despite `sdk.query()`
+being stateless per call.
+
+**Loop behaviour:** managed by the orchestrator — questions are read via `interface.ask()`,
+responses are displayed via `interface.show()`, and the loop exits on empty input or
+`exit` / `quit`.
+
+---
+
 ## ToolBuilderAgent
 
 | | |
