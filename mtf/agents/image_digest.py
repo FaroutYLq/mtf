@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import base64
 import mimetypes
+import warnings
 from pathlib import Path
 
 import anthropic
@@ -202,47 +203,66 @@ class FileDigestSubagent:
                 f"equations, numerical results, and conclusions as described."
             )
 
-            if self._config.pdf_enhanced_extraction:
-                # Call 1: general digest
-                response1 = await asyncio.to_thread(
-                    self._client.messages.create,
-                    model=self._config.image_digest_model,
-                    max_tokens=4096,
-                    system=_PDF_SYSTEM_PROMPT,
-                    messages=[
-                        {
-                            "role": "user",
-                            "content": [
-                                content_block,
-                                {"type": "text", "text": user_text},
-                            ],
-                        }
-                    ],
-                )
-                general_digest: str = response1.content[0].text  # type: ignore[index]
+            file_size_kb = path.stat().st_size / 1024
+            run_enhanced = (
+                self._config.pdf_enhanced_extraction
+                and file_size_kb >= self._config.pdf_min_size_kb_for_enhanced
+            )
 
-                # Call 2: figure extraction
+            if run_enhanced:
+                # Pass 1 (general digest) and Pass 2 (figure extraction) run in parallel.
                 figure_user_text = (
                     f"Extract every figure, graph, plot, and table from this document "
                     f"(filename: {path.name}). For each figure, provide the full quantitative "
                     f"extraction as instructed. Work through the document page by page — "
                     f"do not skip any figure."
                 )
-                response2 = await asyncio.to_thread(
-                    self._client.messages.create,
-                    model=self._config.image_digest_model,
-                    max_tokens=self._config.pdf_figure_extraction_max_tokens,
-                    system=_FIGURE_EXTRACTION_PROMPT,
-                    messages=[
-                        {
-                            "role": "user",
-                            "content": [
-                                content_block,
-                                {"type": "text", "text": figure_user_text},
-                            ],
-                        }
-                    ],
+                response1, response2 = await asyncio.gather(
+                    asyncio.to_thread(
+                        self._client.messages.create,
+                        model=self._config.image_digest_model,
+                        max_tokens=4096,
+                        system=_PDF_SYSTEM_PROMPT,
+                        messages=[
+                            {
+                                "role": "user",
+                                "content": [
+                                    content_block,
+                                    {"type": "text", "text": user_text},
+                                ],
+                            }
+                        ],
+                    ),
+                    asyncio.to_thread(
+                        self._client.messages.create,
+                        model=self._config.image_digest_model,
+                        max_tokens=self._config.pdf_figure_extraction_max_tokens,
+                        system=_FIGURE_EXTRACTION_PROMPT,
+                        messages=[
+                            {
+                                "role": "user",
+                                "content": [
+                                    content_block,
+                                    {"type": "text", "text": figure_user_text},
+                                ],
+                            }
+                        ],
+                    ),
                 )
+                if response1.stop_reason == "max_tokens":
+                    warnings.warn(
+                        f"PDF general digest for {path.name} was truncated (max_tokens=4096). "
+                        "Consider using a shorter document or splitting the PDF.",
+                        stacklevel=2,
+                    )
+                if response2.stop_reason == "max_tokens":
+                    warnings.warn(
+                        f"PDF figure extraction for {path.name} was truncated "
+                        f"(max_tokens={self._config.pdf_figure_extraction_max_tokens}). "
+                        "Consider increasing pdf_figure_extraction_max_tokens in MTFConfig.",
+                        stacklevel=2,
+                    )
+                general_digest: str = response1.content[0].text  # type: ignore[index]
                 figure_digest: str = response2.content[0].text  # type: ignore[index]
 
                 return (
@@ -381,7 +401,7 @@ class ImageDigestAgent:
         response = await asyncio.to_thread(
             self._client.messages.create,
             model=self._config.image_digest_model,
-            max_tokens=4096,
+            max_tokens=8192,
             system=_SYNTHESIS_SYSTEM_PROMPT,
             messages=[{"role": "user", "content": user_content}],
         )

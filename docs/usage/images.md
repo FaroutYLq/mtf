@@ -21,7 +21,7 @@ The digest is stored as `MemoryKind.IMAGE_DATA` in `SharedMemory` and is automat
 MTF supports PDF documents (research papers, lab notes, preprints). Pass a PDF the same way as an image:
 
 ```bash
-mtf "Describe phenomenon" --images notes.pdf figure.png
+mtf "Describe phenomenon" --files notes.pdf figure.png
 ```
 
 ### Standard extraction (single pass)
@@ -54,9 +54,13 @@ dedicated figure-extraction prompt.  This is enabled by default (`config.pdf_enh
 
 Both pass results are combined into a single structured digest stored in `SharedMemory` as `IMAGE_DATA`.
 
+**Pass 1 and Pass 2 run in parallel** (`asyncio.gather()`), so the two-pass path adds no wall-clock latency over a hypothetical sequential run. Pass 2 uses `pdf_figure_extraction_max_tokens` (default **8192**) to accommodate dense figure-heavy documents; if a response is still truncated, MTF logs a warning and you can raise this value in `MTFConfig`.
+
 ### Disabling enhanced extraction
 
-Pass `--no-enhanced-pdf` on the CLI (or set `config.pdf_enhanced_extraction = False` in Python) to use only the single-pass path. Useful when the PDF is short (< 5 pages) or contains no figures.
+Pass `--no-enhanced-pdf` on the CLI (or set `config.pdf_enhanced_extraction = False` in Python) to use only the single-pass path. Useful when the PDF is short or contains no figures.
+
+The two-pass path also has a **file-size guard**: if the PDF is smaller than `config.pdf_min_size_kb_for_enhanced` (default **200 KB**), MTF automatically falls back to single-pass extraction, avoiding the overhead of a second API call for trivially short documents. You can lower or raise this threshold in `MTFConfig`.
 
 ### Why no new dependencies?
 
@@ -65,17 +69,17 @@ Both passes use the same Anthropic messages API call that is already used for im
 ## CLI
 
 ```bash
-mtf "Describe phenomenon" --images paper.pdf figure.png
+mtf "Describe phenomenon" --files paper.pdf figure.png
 ```
 
 ## Python API
 
 ```python
 report = asyncio.run(
-    orchestrator.run("Describe phenomenon", images=["figure1.png"])
+    orchestrator.run("Describe phenomenon", files=["figure1.png"])
 )
 ```
 
 ## Interactive mode
 
-When no `--images` flag is given, the CLI asks whether you have images to provide before starting the analysis.
+When no `--files` flag is given, the CLI asks whether you have files to provide before starting the analysis.

@@ -2,7 +2,7 @@
 
 ```bash
 mtf "Describe your phenomenon here"
-mtf "Describe your phenomenon here" --images plot1.png plot2.png
+mtf "Describe your phenomenon here" --files plot1.png plot2.png
 mtf   # interactive mode — you are prompted for everything
 ```
 
@@ -22,7 +22,7 @@ mtf   # interactive mode — you are prompted for everything
 | `--proposal-model` | `claude-opus-4-6` | Model for proposal agents |
 | `--debate-model` | `claude-opus-4-6` | Model for debate synthesis |
 | `--image-digest-model` | `claude-opus-4-6` | Model for image digestion |
-| `--images` | _(none)_ | Image files to digest (PNG, JPG, GIF, WebP) |
+| `--files` | _(none)_ | Input files to digest (images: PNG, JPG, GIF, WebP; documents: PDF) |
 | `--physics-domains` | `condensed_matter` | GPD physics domains (space-separated) |
 | `--no-fitting` | _(off)_ | Skip quantitative fitting; run qualitative hypothesis evaluation instead |
 | `--no-gpd` | _(off)_ | Disable GPD MCP physics verification |
@@ -33,7 +33,7 @@ mtf   # interactive mode — you are prompted for everything
 
 ```bash
 # Quantum Hall phenomenon with two images
-mtf "Plateau in rho_xx at B=3T" --images rho.png Hall.png
+mtf "Plateau in rho_xx at B=3T" --files rho.png Hall.png
 
 # Cross-domain (neutron star)
 mtf "Neutron star cooling anomaly" --physics-domains gr nuclear amo

@@ -55,4 +55,5 @@ class MTFConfig:
 
     # PDF enhanced extraction
     pdf_enhanced_extraction: bool = True
-    pdf_figure_extraction_max_tokens: int = 4096
+    pdf_figure_extraction_max_tokens: int = 8192
+    pdf_min_size_kb_for_enhanced: int = 200
