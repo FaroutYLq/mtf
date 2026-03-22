@@ -2,12 +2,16 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from mtf.agents.base import BaseAgent
 from mtf.memory import MemoryKind, SharedMemory
 from mtf.toolkit.registry import ToolkitRegistry
 from mtf.tools.fitting_tools import run_fitting_code
+
+if TYPE_CHECKING:
+    from mtf.config import MTFConfig
+    from mtf.tools.gpd_mcp import GPDMCPClient
 
 _SYSTEM_PROMPT = """You are an expert data analysis and model fitting agent for
 experimental physics. Given a hypothesis and experimental data, you:
@@ -32,8 +36,27 @@ experimental physics. Given a hypothesis and experimental data, you:
    parameters with uncertainties, and an assessment of whether the hypothesis is
    supported. Chi-squared is a necessary metric but NOT the sole quality criterion;
    physical correctness (parameter bounds, limiting cases, symmetry) matters more.
+8. If your fitting code fails to converge or produces unphysical parameters, call
+   `add_pattern(category='convergence-issue', ...)` to record the pattern for future
+   runs on this domain.
 
 Always write clean, well-commented fitting code."""
+
+
+def _strip_fences(code: str) -> str:
+    """Strip markdown code fences from a code string."""
+    if "```" not in code:
+        return code
+    lines = code.splitlines()
+    code_lines = []
+    in_block = False
+    for line in lines:
+        if line.strip().startswith("```"):
+            in_block = not in_block
+            continue
+        if in_block:
+            code_lines.append(line)
+    return "\n".join(code_lines)
 
 
 class FittingAgent(BaseAgent):
@@ -44,6 +67,8 @@ class FittingAgent(BaseAgent):
         memory: SharedMemory,
         toolkit: ToolkitRegistry,
         gpd_tools: list[Any] | None = None,
+        gpd: GPDMCPClient | None = None,
+        config: MTFConfig | None = None,
     ) -> None:
         extra_tools: list[Any] = gpd_tools if gpd_tools is not None else []
         super().__init__(
@@ -54,6 +79,8 @@ class FittingAgent(BaseAgent):
             system_prompt=_SYSTEM_PROMPT,
         )
         self._toolkit = toolkit
+        self._gpd = gpd
+        self._config = config
 
     async def identify_needed_toolkit_items(self, hypothesis: str) -> list[str]:
         """Ask the agent which toolkit items it needs to fit this hypothesis."""
@@ -70,6 +97,8 @@ class FittingAgent(BaseAgent):
                 MemoryKind.DEBATE,
                 MemoryKind.IMAGE_DATA,
                 MemoryKind.CONVENTIONS,
+                MemoryKind.FITTING_WARNINGS,
+                MemoryKind.DOMAIN_PATTERNS,
             ),
         )
         lines = [l.strip() for l in response.splitlines() if l.strip()]
@@ -97,20 +126,56 @@ class FittingAgent(BaseAgent):
                 MemoryKind.USER_FEEDBACK,
                 MemoryKind.IMAGE_DATA,
                 MemoryKind.CONVENTIONS,
+                MemoryKind.FITTING_WARNINGS,
+                MemoryKind.DOMAIN_PATTERNS,
             ),
         )
-        # Strip markdown code fences if present
-        if "```" in code:
-            lines = code.splitlines()
-            code_lines = []
-            in_block = False
-            for line in lines:
-                if line.strip().startswith("```"):
-                    in_block = not in_block
-                    continue
-                if in_block:
-                    code_lines.append(line)
-            code = "\n".join(code_lines)
+        code = _strip_fences(code)
+
+        # Pre-exec convention check (Addition 3): check generated code for convention
+        # violations before running it; retry once if violations are found.
+        if (
+            self._gpd is not None
+            and self._config is not None
+            and self._config.fitting_convention_check
+        ):
+            domain = (
+                self._config.physics_domains[0]
+                if self._config.physics_domains
+                else "condensed_matter"
+            )
+            for attempt in range(self._config.fitting_max_convention_retries + 1):
+                check_result = self._gpd.call(
+                    "conventions", "convention_check",
+                    expression=code[:2000], domain=domain,
+                )
+                if check_result and "FAIL" in check_result.upper():
+                    self._memory.add(
+                        MemoryKind.PHYSICS_VERDICT,
+                        check_result,
+                        source="convention_check_pre_exec",
+                        hypothesis=hypothesis[:200],
+                    )
+                    if attempt < self._config.fitting_max_convention_retries:
+                        retry_task = (
+                            f"{task}\n\nConvention check FAIL (attempt {attempt + 1}):\n"
+                            f"{check_result}\n\nPlease fix all convention violations."
+                        )
+                        code = await self._query(
+                            retry_task,
+                            extra_kinds=(
+                                MemoryKind.LITERATURE,
+                                MemoryKind.DEBATE,
+                                MemoryKind.USER_FEEDBACK,
+                                MemoryKind.IMAGE_DATA,
+                                MemoryKind.CONVENTIONS,
+                                MemoryKind.FITTING_WARNINGS,
+                                MemoryKind.DOMAIN_PATTERNS,
+                            ),
+                        )
+                        code = _strip_fences(code)
+                else:
+                    break  # No violation — proceed to exec
 
         fit_output = run_fitting_code(code, self._toolkit.all_data())
         report = f"Hypothesis: {hypothesis}\n\nFit output: {fit_output}"

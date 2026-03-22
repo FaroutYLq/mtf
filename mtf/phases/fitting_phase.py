@@ -20,6 +20,83 @@ def _looks_complex(value: str) -> bool:
     return any(t in value for t in triggers)
 
 
+async def _prefetch_fitting_warnings(
+    hypotheses: list[str],
+    config: MTFConfig,
+    memory: SharedMemory,
+    gpd: Any,
+) -> None:
+    """Pre-fetch known pitfall patterns and error classes before the fit fan-out (Addition 4)."""
+    async def check_hyp(domain: str, hyp: str) -> list[str]:
+        results = await asyncio.gather(
+            asyncio.to_thread(
+                gpd.call, "patterns", "lookup_pattern",
+                domain=domain, category="sign-error", context=hyp[:200],
+            ),
+            asyncio.to_thread(
+                gpd.call, "patterns", "lookup_pattern",
+                domain=domain, category="convergence-issue", context=hyp[:200],
+            ),
+            asyncio.to_thread(
+                gpd.call, "errors", "check_error_classes",
+                description=hyp[:500],
+            ),
+        )
+        return [r for r in results if r]
+
+    for domain in config.physics_domains:
+        domain_results = await asyncio.gather(
+            *(check_hyp(domain, hyp) for hyp in hypotheses)
+        )
+        for hyp, results in zip(hypotheses, domain_results):
+            combined = "\n".join(results)
+            if combined.strip():
+                memory.add(
+                    MemoryKind.FITTING_WARNINGS,
+                    combined,
+                    domain=domain,
+                    hypothesis=hyp[:200],
+                )
+
+
+async def _run_phase_physics_checks(
+    fit_reports: list[str],
+    hypotheses: list[str],
+    memory: SharedMemory,
+    gpd: Any,
+) -> None:
+    """Run dimensional (5.1) and limiting-case (5.3) checks on fit results (Addition 2).
+
+    Writes non-empty results as PHYSICS_VERDICT entries so DebateEngine.synthesize()
+    picks them up for the fitting synthesis.
+    """
+    async def run_checks(hyp: str, report: str) -> None:
+        results = await asyncio.gather(
+            asyncio.to_thread(
+                gpd.call, "verification", "run_check",
+                check_id="5.1", content=report[:1000],
+            ),
+            asyncio.to_thread(
+                gpd.call, "verification", "run_check",
+                check_id="5.3", content=report[:1000],
+            ),
+        )
+        for result in results:
+            if result:
+                memory.add(
+                    MemoryKind.PHYSICS_VERDICT,
+                    result,
+                    source="fitting_phase_check",
+                    hypothesis=hyp[:200],
+                )
+
+    n = len(hypotheses)
+    await asyncio.gather(*(
+        run_checks(hypotheses[i % n], report)
+        for i, report in enumerate(fit_reports)
+    ))
+
+
 async def run_fitting_phase(
     hypotheses: list[str],
     config: MTFConfig,
@@ -48,6 +125,14 @@ async def run_fitting_phase(
                 "Get canonical physics convention defaults for a subfield "
                 "(e.g. condensed_matter, qft, gr, amo). Use to ensure your fitting code "
                 "uses correct sign conventions, Fourier transforms, and natural units."),
+            gpd.make_tool("conventions", "convention_check",
+                "Check a code expression or equation for physics convention violations. "
+                "Input: expression (str), domain (str). Returns PASS/FAIL with details. "
+                "Call on your fitting code before finalizing it."),
+            gpd.make_tool("patterns", "add_pattern",
+                "Record a fitting failure pattern (convergence issue, sign error, etc.) "
+                "that future agents should avoid. Call with domain, category, and description "
+                "when your fitting code fails to converge or produces unphysical parameters."),
         ] if t is not None]
 
     async def fit_with_semaphore(agent: FittingAgent, hypothesis: str) -> dict[str, object]:
@@ -60,6 +145,10 @@ async def run_fitting_phase(
         title="MTF: Fitting",
     )
 
+    # Pre-fetch pitfall warnings before the fan-out (Addition 4)
+    if gpd is not None:
+        await _prefetch_fitting_warnings(hypotheses, config, memory, gpd)
+
     # Check for missing toolkit items
     probe_agent = FittingAgent(
         agent_id="probe",
@@ -67,6 +156,8 @@ async def run_fitting_phase(
         memory=memory,
         toolkit=toolkit,
         gpd_tools=gpd_tools,
+        gpd=gpd,
+        config=config,
     )
     seen_missing: set[str] = set()
     for hypothesis in hypotheses:
@@ -136,6 +227,8 @@ async def run_fitting_phase(
                     memory=memory,
                     toolkit=toolkit,
                     gpd_tools=gpd_tools,
+                    gpd=gpd,
+                    config=config,
                 )
                 for i in range(config.n_fitting)
             ]
@@ -152,6 +245,8 @@ async def run_fitting_phase(
                 memory=memory,
                 toolkit=toolkit,
                 gpd_tools=gpd_tools,
+                gpd=gpd,
+                config=config,
             )
             for i in range(config.n_fitting)
         ]
@@ -159,6 +254,10 @@ async def run_fitting_phase(
             *(fit_with_semaphore(a, hyp) for hyp in hypotheses for a in agents)
         )
         all_fit_reports = [str(r) for r in results]
+
+    # Run phase-level physics checks before synthesis so PHYSICS_VERDICT is populated (Addition 2)
+    if gpd is not None:
+        await _run_phase_physics_checks(all_fit_reports, hypotheses, memory, gpd)
 
     synthesis = await debate_engine.synthesize(
         all_fit_reports,
