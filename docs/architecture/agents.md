@@ -51,10 +51,20 @@ A stateless, leaf-level worker that digests exactly one file.  It does not touch
   all axis labels and units and scale, every data series as a Python list of numbers,
   key quantitative features (peaks, plateaus, slopes, error bars, fit parameters),
   embedded annotations, and a brief physical interpretation.
-- **PDFs**: sends a content block of type `"document"` with base64 PDF data.  The system
-  prompt asks for: document type, title, authors, physical system and phenomena, key equations
-  (reproduced symbolically with symbol definitions), experimental methods and parameters,
-  all reported numerical values with units, and main conclusions.
+- **PDFs**: sends a content block of type `"document"` with base64 PDF data.
+
+  **Standard pass** (`_PDF_SYSTEM_PROMPT`): extracts document type, title, authors, physical
+  system, key equations (reproduced symbolically), experimental methods and parameters, all
+  reported numerical values with units, conclusions, and a **Figure Inventory** listing every
+  figure by page number and caption.
+
+  **Figure-extraction pass** (`_FIGURE_EXTRACTION_PROMPT`, enabled when
+  `config.pdf_enhanced_extraction = True`): a second API call with the same document block,
+  using a dedicated prompt that iterates page-by-page and extracts each figure individually —
+  type, axes (labels, units, scale, range), every data series as numerical arrays, key
+  quantitative features, and physical significance.  The two pass results are combined into a
+  single sectioned digest: `## General Document Digest` followed by
+  `## Figure-by-Figure Extraction`.
 
 The MIME type is detected via `mimetypes.guess_type()`; unrecognised formats default to
 `image/png`.

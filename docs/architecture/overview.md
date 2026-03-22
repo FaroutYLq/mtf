@@ -99,9 +99,15 @@ can access extracted numerical data.
      type, axis labels and units, all data series as Python lists of numbers, key quantitative
      features (peaks, plateaus, slopes, error bars, fit parameters), embedded annotations, and
      a brief physical interpretation.
-   - **PDFs**: a separate system prompt asks for document type, physical system, key equations
-     (reproduced symbolically), experimental methods and parameters, all reported numerical
-     values with units and uncertainties, and conclusions.
+   - **PDFs**: processed in up to two passes when `config.pdf_enhanced_extraction = True` (default).
+     - *Pass 1 (general digest):* the full PDF is sent with `_PDF_SYSTEM_PROMPT`, which extracts
+       document metadata, physical system, key equations, experimental methods, all reported numerical
+       values, conclusions, and a Figure Inventory enumerating every figure by page.
+     - *Pass 2 (figure extraction):* the same PDF is sent again with `_FIGURE_EXTRACTION_PROMPT`,
+       which iterates page-by-page and extracts each figure individually — type, axes, data series
+       as numerical arrays, quantitative features, and physical significance.
+     - Both results are concatenated into a single structured digest.  When `pdf_enhanced_extraction = False`,
+       only Pass 1 runs (same as the pre-existing behaviour).
 3. Each digest is stored in `SharedMemory` as `MemoryKind.IMAGE_DATA` with
    `source_file` and `filename` metadata.
 4. If more than one file was provided, a second synthesis `messages.create()` call combines

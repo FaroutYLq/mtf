@@ -27,6 +27,7 @@ mtf   # interactive mode — you are prompted for everything
 | `--no-fitting` | _(off)_ | Skip quantitative fitting; run qualitative hypothesis evaluation instead |
 | `--no-gpd` | _(off)_ | Disable GPD MCP physics verification |
 | `--gpd-servers` | _(all)_ | GPD servers to start |
+| `--no-enhanced-pdf` | _(off)_ | Use single-pass PDF extraction instead of the default two-pass figure analysis |
 
 ## Examples
 

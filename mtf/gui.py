@@ -139,6 +139,7 @@ def _streamlit_app() -> None:
             index=0,
         )
         enable_gpd = st.checkbox("Enable GPD physics verification", value=True)
+        enhanced_pdf = st.checkbox("Enhanced PDF extraction (2-pass figure analysis)", value=True)
 
     # ------------------------------------------------------------------
     # Pre-run view
@@ -177,6 +178,7 @@ def _streamlit_app() -> None:
                 fitting_enabled=not skip_fitting,
                 reviewer_model=reviewer_model,
                 proposal_model=proposal_model,
+                pdf_enhanced_extraction=enhanced_pdf,
             )
 
             ui_queue: "queue.Queue[tuple[str, Any, Any]]" = queue.Queue()
