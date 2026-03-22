@@ -17,20 +17,20 @@ from typing import Any
 
 from mtf.interface import HumanInterface
 
-_REPLY_POLL_INTERVAL = 1.0  # seconds between timeout checks in _blocking_get
-_REPLY_TIMEOUT = 3600.0     # 1 hour — abandon wait if browser tab was closed
+_REPLY_TIMEOUT = 3600.0  # 1 hour — abandon wait if browser tab was closed
 
 
 def _blocking_get(rq: "queue.Queue[Any]") -> Any:
-    """Poll *rq* in short intervals so the thread can eventually be GC'd if the
-    browser session disappears (avoids an indefinite daemon-thread leak)."""
-    deadline = time.monotonic() + _REPLY_TIMEOUT
-    while time.monotonic() < deadline:
-        try:
-            return rq.get(timeout=_REPLY_POLL_INTERVAL)
-        except queue.Empty:
-            continue
-    raise TimeoutError("No reply received from Streamlit within the timeout period.")
+    """Wait on *rq* for up to *_REPLY_TIMEOUT* seconds.
+
+    The orchestrator thread is a daemon thread, so it is automatically
+    killed when the main process exits.  A finite timeout is still set so
+    that a closed browser tab eventually releases the thread.
+    """
+    try:
+        return rq.get(timeout=_REPLY_TIMEOUT)
+    except queue.Empty:
+        raise TimeoutError("No reply received from Streamlit within the timeout period.")
 
 
 class StreamlitInterface(HumanInterface):
