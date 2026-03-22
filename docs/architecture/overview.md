@@ -1,8 +1,8 @@
 # Architecture Overview
 
-MTF runs four sequential phases. Each phase fans out parallel agents, collects their reports,
-synthesises them in a single debate call, and (where applicable) waits for user approval before
-proceeding.
+MTF runs four analysis phases followed by an optional follow-up chat. Each analysis phase fans
+out parallel agents, collects their reports, synthesises them in a single debate call, and
+(where applicable) waits for user approval before proceeding.
 
 ## Pipeline
 
@@ -62,6 +62,13 @@ flowchart TD
         PD --> FR
     end
 
+    subgraph CHAT ["④ FOLLOW-UP CHAT (optional)"]
+        direction TB
+        CQ{"Follow-up\nquestions?"}
+        CA["FollowUpChatAgent\nfull memory context\nmulti-turn Q&A loop"]
+        CQ -->|"yes — loop until exit"| CA
+    end
+
     GPD -.->|"tools"| L
     GPD -.->|"tools"| F
     GPD -.->|"tools"| R
@@ -79,7 +86,9 @@ flowchart TD
     IMG --> LIT
     LIT -->|"approved hypotheses"| FIT
     FIT --> REV
-    REV --> Report
+    REV --> CQ
+    CQ -->|"no"| Report
+    CA -->|"exit"| Report
 ```
 
 ---
@@ -340,6 +349,34 @@ returned to the user.
 
 ---
 
+## Phase 4: Follow-up Chat
+
+After the final report is shown, `MTFOrchestrator._run_followup_chat()` offers an optional
+interactive Q&A session.
+
+1. **Opt-in gate:** the user is asked `"Would you like to ask follow-up questions?"`.
+   Declining skips the phase entirely; the orchestrator returns the final report string
+   unchanged.
+
+2. **Single agent:** one `FollowUpChatAgent` is created.  It has no tools — follow-up
+   questions are answered purely from the full `SharedMemory` context, which at this point
+   contains all `LITERATURE`, `DEBATE`, `HYPOTHESIS`, `FIT_RESULT`, `REVIEW`, `PROPOSALS`,
+   `USER_FEEDBACK`, `IMAGE_DATA`, `CONVENTIONS`, `PHYSICS_VERDICT`, `FITTING_WARNINGS`,
+   and `QUALITATIVE_EVAL` entries.
+
+3. **Multi-turn loop:** each question is sent to `sdk.query()` with the full memory context
+   prepended and the accumulated conversation history appended.  The history is formatted as
+   an alternating `User: … / Assistant: …` dialogue block and grows with each exchange, so
+   the agent can refer back to earlier answers.  The loop exits when the user submits an
+   empty line or types `exit` / `quit`.
+
+**Why a single agent (not a panel):** The reviewer and proposal agents already produced their
+specialised verdicts; those are stored in `SharedMemory` and injected into every follow-up
+prompt automatically.  A single agent answering from that rich context is faster and produces
+more coherent multi-turn replies than re-running a full fan-out + debate cycle per question.
+
+---
+
 ## Debate Engine internals
 
 `DebateEngine.synthesize()` is always a single plain `messages.create()` call — never an
@@ -414,7 +451,8 @@ mtf/
 │   ├── qualitative.py      QualitativeEvaluationAgent (--no-fitting mode)
 │   ├── reviewer.py         ReviewerAgent
 │   ├── proposal.py         ProposalAgent
-│   └── tool_builder.py     ToolBuilderAgent
+│   ├── tool_builder.py     ToolBuilderAgent
+│   └── followup.py         FollowUpChatAgent (post-report Q&A)
 ├── phases/
 │   ├── literature_phase.py convention lock + debate loop + approval gate
 │   ├── fitting_phase.py    toolkit resolution + fan-out + debate

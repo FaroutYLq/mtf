@@ -6,6 +6,7 @@ import asyncio
 import re
 from pathlib import Path
 
+from mtf.agents.followup import FollowUpChatAgent
 from mtf.agents.image_digest import ImageDigestAgent
 from mtf.config import MTFConfig
 from mtf.debate import DebateEngine
@@ -199,8 +200,36 @@ class MTFOrchestrator:
                 gpd=gpd,
             )
 
+            await self._run_followup_chat()
+
         finally:
             if gpd is not None:
                 gpd.close()
 
         return final_report
+
+    async def _run_followup_chat(self) -> None:
+        """Interactive follow-up Q&A loop after the final report is shown.
+
+        Creates a single FollowUpChatAgent with full shared-memory context and
+        loops until the user submits an empty input or types 'exit' / 'quit'.
+        """
+        wants_chat = await self._interface.confirm(
+            "Would you like to ask follow-up questions about the analysis?"
+        )
+        if not wants_chat:
+            return
+
+        agent = FollowUpChatAgent(self._config, self._memory)
+        await self._interface.show(
+            "You can now ask follow-up questions about the analysis. "
+            "Type an empty line or **exit** to finish.",
+            title="MTF: Follow-up Chat",
+        )
+
+        while True:
+            question = await self._interface.ask("Your question")
+            if not question.strip() or question.strip().lower() in {"exit", "quit"}:
+                break
+            answer = await agent.chat(question.strip())
+            await self._interface.show(answer, title="MTF: Follow-up")
