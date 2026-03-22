@@ -99,8 +99,8 @@ image/document blocks can be placed in the content list alongside text blocks.
 |---|---|
 | **Phase** | ① Literature |
 | **API** | `sdk.query()` (agentic) |
-| **Tools** | arxiv search, Semantic Scholar, GPD: `check_error_classes`, `route_protocol` |
-| **Memory context read** | `USER_FEEDBACK`, `IMAGE_DATA`, `CONVENTIONS` |
+| **Tools** | arxiv search, Semantic Scholar, GPD: `check_error_classes`, `route_protocol`, `lookup_pattern`, `add_pattern` |
+| **Memory context read** | `USER_FEEDBACK`, `IMAGE_DATA`, `CONVENTIONS`, `DOMAIN_PATTERNS` |
 | **Memory written** | `LITERATURE` |
 
 N instances run concurrently in each debate round (`asyncio.gather()`).
@@ -114,6 +114,11 @@ The system prompt instructs a fixed tool-call order:
 2. Search arxiv and Semantic Scholar thoroughly, prioritising recent, highly-cited work.
 3. For each proposed hypothesis, call `check_error_classes` to get the top-15 most likely
    physics error classes — error-prone approaches are flagged in the report.
+4. If systematic errors are found in a class of papers (convention-pitfalls, sign errors,
+   missing factors), call `add_pattern` to record them in the cross-session pattern store.
+
+The agent also receives `DOMAIN_PATTERNS` in context — pre-fetched pitfall patterns for the
+physics domain, written to memory before the fan-out.
 
 **Report structure produced:**
 
@@ -136,8 +141,8 @@ The report is stored as `LITERATURE` and returned to the phase for debate.
 |---|---|
 | **Phase** | ② Fitting |
 | **API** | `sdk.query()` (agentic) |
-| **Tools** | GPD: `route_protocol`, `get_protocol`, `subfield_defaults` |
-| **Memory context read** | `LITERATURE`, `DEBATE`, `USER_FEEDBACK`, `IMAGE_DATA`, `CONVENTIONS` |
+| **Tools** | GPD: `route_protocol`, `get_protocol`, `subfield_defaults`, `convention_check`, `add_pattern` |
+| **Memory context read** | `LITERATURE`, `DEBATE`, `USER_FEEDBACK`, `IMAGE_DATA`, `CONVENTIONS`, `FITTING_WARNINGS`, `DOMAIN_PATTERNS` |
 | **Memory written** | `FIT_RESULT` |
 
 M instances run per hypothesis, all rate-limited by `asyncio.Semaphore`.
@@ -146,6 +151,7 @@ M instances run per hypothesis, all rate-limited by `asyncio.Semaphore`.
 
 Asks the agent which data items and model functions are needed. Items prefixed with
 `MISSING:` in the response trigger an interactive toolkit-resolution loop in the phase.
+This probe also reads `FITTING_WARNINGS` and `DOMAIN_PATTERNS` from context.
 
 **`fit(hypothesis)` — agentic loop:**
 
@@ -157,6 +163,18 @@ The system prompt instructs:
 3. Call `subfield_defaults` with the relevant subfield to get canonical conventions
    (sign, Fourier, natural units, gauge) and embed them in the code.
 4. Write lmfit Python code following the protocol's checkpoints.
+5. If the fit fails to converge or produces unphysical parameters, call `add_pattern`
+   to record the convergence issue in the cross-session pattern store.
+
+The agent receives `FITTING_WARNINGS` and `DOMAIN_PATTERNS` in context — pre-fetched
+pitfall warnings for the specific hypothesis/domain combination, written before the fan-out.
+
+**Pre-exec convention check (phase-level, not agent-level):**
+
+After the agentic loop generates code, `fit()` calls `convention_check` on the generated
+code before `exec()`. If the check returns `FAIL`, the violation is written to
+`PHYSICS_VERDICT` and the agent retries once with the violation text in context
+(controlled by `config.fitting_convention_check` and `config.fitting_max_convention_retries`).
 
 The generated code is stripped of markdown fences, then executed by `run_fitting_code()`
 via `exec()` in a namespace seeded with `numpy`, `lmfit`, `scipy`, and the user's `data`
