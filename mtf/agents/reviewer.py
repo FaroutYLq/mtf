@@ -74,6 +74,8 @@ class ReviewerAgent(BaseAgent):
                 MemoryKind.IMAGE_DATA,
                 MemoryKind.CONVENTIONS,
                 MemoryKind.PHYSICS_VERDICT,
+                MemoryKind.QUALITATIVE_EVAL,
+                MemoryKind.FITTING_SKIPPED,
             ),
         )
         self._memory.add(

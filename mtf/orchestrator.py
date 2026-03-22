@@ -13,6 +13,7 @@ from mtf.interface import CLIInterface, HumanInterface
 from mtf.memory import MemoryKind, SharedMemory
 from mtf.phases.fitting_phase import run_fitting_phase
 from mtf.phases.literature_phase import run_literature_phase
+from mtf.phases.qualitative_phase import run_qualitative_phase
 from mtf.phases.review_phase import run_review_phase
 from mtf.toolkit.registry import ToolkitRegistry
 from mtf.tools.gpd_mcp import GPDMCPClient
@@ -166,16 +167,27 @@ class MTFOrchestrator:
                 gpd=gpd,
             )
 
-            # Phase 2: Fitting
-            await run_fitting_phase(
-                hypotheses=hypotheses,
-                config=self._config,
-                memory=self._memory,
-                interface=self._interface,
-                debate_engine=debate,
-                toolkit=self._toolkit,
-                gpd=gpd,
-            )
+            # Phase 2: Fitting (or qualitative evaluation if fitting is disabled)
+            if self._config.fitting_enabled:
+                await run_fitting_phase(
+                    hypotheses=hypotheses,
+                    config=self._config,
+                    memory=self._memory,
+                    interface=self._interface,
+                    debate_engine=debate,
+                    toolkit=self._toolkit,
+                    gpd=gpd,
+                )
+            else:
+                await run_qualitative_phase(
+                    phenomenon=phenomenon,
+                    hypotheses=hypotheses,
+                    config=self._config,
+                    memory=self._memory,
+                    interface=self._interface,
+                    debate_engine=debate,
+                    gpd=gpd,
+                )
 
             # Phase 3: Review
             final_report = await run_review_phase(

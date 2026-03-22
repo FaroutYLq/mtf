@@ -47,6 +47,11 @@ def build_parser() -> argparse.ArgumentParser:
         "'condensed_matter qft' for cross-domain phenomena (default: condensed_matter)",
     )
     p.add_argument(
+        "--no-fitting",
+        action="store_true",
+        help="Skip the numerical fitting phase and run a qualitative hypothesis evaluation instead",
+    )
+    p.add_argument(
         "--no-gpd",
         action="store_true",
         help="Disable GPD MCP physics verification servers",
@@ -77,6 +82,7 @@ def main() -> None:
     gpd_kwargs: dict[str, object] = {
         "enable_gpd_mcp": not args.no_gpd,
         "physics_domains": args.physics_domains,
+        "fitting_enabled": not args.no_fitting,
     }
     if args.gpd_servers is not None:
         gpd_kwargs["gpd_servers"] = args.gpd_servers

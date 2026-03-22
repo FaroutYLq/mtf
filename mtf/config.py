@@ -23,6 +23,7 @@ class MTFConfig:
     max_debate_rounds: int = 3
 
     # Fitting
+    fitting_enabled: bool = True
     fitting_scope: str = "per_hypothesis"  # "per_hypothesis" | "all"
     fitting_semaphore_limit: int = 6
 
