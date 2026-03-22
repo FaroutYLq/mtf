@@ -30,6 +30,7 @@ mtf/
 ├── gui.py                  StreamlitInterface + Streamlit app — `mtf-gui` entry point
 ├── orchestrator.py         MTFOrchestrator.run() — sequences all three phases
 ├── cli.py                  `mtf` CLI entry point (argparse)
+├── utils.py                Shared helpers — strip_fences() for LLM code extraction
 ├── agents/
 │   ├── base.py             BaseAgent — wraps sdk.query(), injects SharedMemory context
 │   ├── image_digest.py     ImageDigestAgent — Anthropic vision API, quantitative plot extraction

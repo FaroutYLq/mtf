@@ -198,8 +198,8 @@ items it needs for each hypothesis (`identify_needed_toolkit_items()`).  Any ite
 with `MISSING:` in the response triggers an interactive request to the user.
 
 User-provided values are handled on two paths:
-- **Fast path:** if the value looks like a simple Python literal (no newlines, no `def`,
-  `class`, `import`, etc.), it is evaluated with `eval()` and registered directly.
+- **Fast path:** if `compile(value, '<string>', 'eval')` succeeds — i.e. the value is a
+  valid single Python expression — it is evaluated with `eval()` and registered directly.
 - **Slow path:** complex input (function definitions, CSV text, code snippets, datasheets)
   is passed to a `ToolBuilderAgent`, which writes and executes `exec()`-based parsing code
   to produce structured `data_items` and `model_items`, then registers them in
@@ -405,6 +405,7 @@ mtf/
 ├── gui.py                  StreamlitInterface + Streamlit app
 ├── orchestrator.py         MTFOrchestrator.run()
 ├── cli.py                  mtf entry point
+├── utils.py                Shared helpers — strip_fences()
 ├── agents/
 │   ├── base.py             BaseAgent (sdk.query wrapper + _build_prompt)
 │   ├── image_digest.py     ImageDigestAgent + FileDigestSubagent
