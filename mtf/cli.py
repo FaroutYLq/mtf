@@ -60,6 +60,11 @@ def build_parser() -> argparse.ArgumentParser:
         help="Disable GPD MCP physics verification servers",
     )
     p.add_argument(
+        "--no-enhanced-pdf",
+        action="store_true",
+        help="Use single-pass PDF extraction instead of the default two-pass figure analysis",
+    )
+    p.add_argument(
         "--gpd-servers",
         nargs="+",
         metavar="SERVER",
@@ -103,6 +108,7 @@ def main() -> None:
         debate_model=args.debate_model,
         max_debate_rounds=args.max_debate_rounds,
         image_digest_model=args.image_digest_model,
+        pdf_enhanced_extraction=not args.no_enhanced_pdf,
         **gpd_kwargs,  # type: ignore[arg-type]
     )
     orchestrator = MTFOrchestrator(config=config)

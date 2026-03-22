@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import base64
 import mimetypes
+import warnings
 from pathlib import Path
 
 import anthropic
@@ -89,7 +90,37 @@ mechanisms or interpretations.
 Note any direct connections to anomalous, unexplained, or noteworthy experimental
 observations that would be relevant to a broader physics research analysis.
 
+## Figure Inventory
+List every figure, graph, plot, table, or diagram in the document in order of appearance.
+For each: page number, figure number/label (if any), caption (if any), and a one-line description
+of what it shows. This inventory helps identify which figures to extract in detail.
+
 Be precise with numbers and units. Use scientific notation where appropriate."""
+
+_FIGURE_EXTRACTION_PROMPT = """You are an expert physicist performing targeted extraction of
+figures, plots, and quantitative data from a scientific PDF document.
+
+Your ONLY task is to enumerate and extract every figure, graph, plot, diagram, and table in the
+document. For each one:
+
+## Figure N (page X)
+**Caption**: [exact caption text if present]
+**Type**: [scatter plot / line graph / heatmap / bar chart / table / schematic / photograph / etc.]
+**Axes**:
+  - x-axis: [label, unit, scale (linear/log), range]
+  - y-axis: [label, unit, scale (linear/log), range]
+  - (add z-axis or colorbar if applicable)
+**Data Series**: For each curve, dataset, or histogram:
+  - Name/label: [from legend or inferred]
+  - Extracted values: x = [...], y = [...] (best-estimate numerical lists)
+  - If values are not readable: describe the trend quantitatively (e.g., "monotonically increasing from ~0.1 to ~10 over the x-range")
+**Key Features**:
+  - List specific quantitative features: peaks at x=..., plateau at y=..., slope=..., error bars=±...
+  - List any fit parameters or annotations visible in the figure
+**Physical significance**: one sentence on what this figure shows physically
+
+If the document contains no figures or only schematics with no numerical data, state that explicitly.
+Do NOT summarise the text. Focus exclusively on figures and quantitative data."""
 
 _SYNTHESIS_SYSTEM_PROMPT = """You are an expert physicist synthesizing information
 from multiple experimental files (images, plots, papers, and notes).
@@ -166,12 +197,96 @@ class FileDigestSubagent:
                     "data": b64_data,
                 },
             }
-            system = _PDF_SYSTEM_PROMPT
             user_text = (
                 f"Please provide a complete scientific digest of this document "
                 f"(filename: {path.name}). Extract all key physics content, "
                 f"equations, numerical results, and conclusions as described."
             )
+
+            file_size_kb = path.stat().st_size / 1024
+            run_enhanced = (
+                self._config.pdf_enhanced_extraction
+                and file_size_kb >= self._config.pdf_min_size_kb_for_enhanced
+            )
+
+            if run_enhanced:
+                # Pass 1 (general digest) and Pass 2 (figure extraction) run in parallel.
+                figure_user_text = (
+                    f"Extract every figure, graph, plot, and table from this document "
+                    f"(filename: {path.name}). For each figure, provide the full quantitative "
+                    f"extraction as instructed. Work through the document page by page — "
+                    f"do not skip any figure."
+                )
+                response1, response2 = await asyncio.gather(
+                    asyncio.to_thread(
+                        self._client.messages.create,
+                        model=self._config.image_digest_model,
+                        max_tokens=4096,
+                        system=_PDF_SYSTEM_PROMPT,
+                        messages=[
+                            {
+                                "role": "user",
+                                "content": [
+                                    content_block,
+                                    {"type": "text", "text": user_text},
+                                ],
+                            }
+                        ],
+                    ),
+                    asyncio.to_thread(
+                        self._client.messages.create,
+                        model=self._config.image_digest_model,
+                        max_tokens=self._config.pdf_figure_extraction_max_tokens,
+                        system=_FIGURE_EXTRACTION_PROMPT,
+                        messages=[
+                            {
+                                "role": "user",
+                                "content": [
+                                    content_block,
+                                    {"type": "text", "text": figure_user_text},
+                                ],
+                            }
+                        ],
+                    ),
+                )
+                if response1.stop_reason == "max_tokens":
+                    warnings.warn(
+                        f"PDF general digest for {path.name} was truncated (max_tokens=4096). "
+                        "Consider using a shorter document or splitting the PDF.",
+                        stacklevel=2,
+                    )
+                if response2.stop_reason == "max_tokens":
+                    warnings.warn(
+                        f"PDF figure extraction for {path.name} was truncated "
+                        f"(max_tokens={self._config.pdf_figure_extraction_max_tokens}). "
+                        "Consider increasing pdf_figure_extraction_max_tokens in MTFConfig.",
+                        stacklevel=2,
+                    )
+                general_digest: str = response1.content[0].text  # type: ignore[index]
+                figure_digest: str = response2.content[0].text  # type: ignore[index]
+
+                return (
+                    f"## General Document Digest\n\n{general_digest}\n\n"
+                    f"---\n\n"
+                    f"## Figure-by-Figure Extraction\n\n{figure_digest}"
+                )
+            else:
+                response = await asyncio.to_thread(
+                    self._client.messages.create,
+                    model=self._config.image_digest_model,
+                    max_tokens=4096,
+                    system=_PDF_SYSTEM_PROMPT,
+                    messages=[
+                        {
+                            "role": "user",
+                            "content": [
+                                content_block,
+                                {"type": "text", "text": user_text},
+                            ],
+                        }
+                    ],
+                )
+                return response.content[0].text  # type: ignore[index]
         else:
             content_block = {
                 "type": "image",
@@ -187,23 +302,22 @@ class FileDigestSubagent:
                 f"(filename: {path.name}). Extract all numerical data and "
                 f"physically significant features as described in your instructions."
             )
-
-        response = await asyncio.to_thread(
-            self._client.messages.create,
-            model=self._config.image_digest_model,
-            max_tokens=4096,
-            system=system,
-            messages=[
-                {
-                    "role": "user",
-                    "content": [
-                        content_block,
-                        {"type": "text", "text": user_text},
-                    ],
-                }
-            ],
-        )
-        return response.content[0].text  # type: ignore[index]
+            response = await asyncio.to_thread(
+                self._client.messages.create,
+                model=self._config.image_digest_model,
+                max_tokens=4096,
+                system=system,
+                messages=[
+                    {
+                        "role": "user",
+                        "content": [
+                            content_block,
+                            {"type": "text", "text": user_text},
+                        ],
+                    }
+                ],
+            )
+            return response.content[0].text  # type: ignore[index]
 
 
 class ImageDigestAgent:
@@ -287,7 +401,7 @@ class ImageDigestAgent:
         response = await asyncio.to_thread(
             self._client.messages.create,
             model=self._config.image_digest_model,
-            max_tokens=4096,
+            max_tokens=8192,
             system=_SYNTHESIS_SYSTEM_PROMPT,
             messages=[{"role": "user", "content": user_content}],
         )

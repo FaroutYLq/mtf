@@ -52,3 +52,8 @@ class MTFConfig:
     # Proposal agent
     n_proposal: int = 2
     proposal_model: str = "claude-opus-4-6"
+
+    # PDF enhanced extraction
+    pdf_enhanced_extraction: bool = True
+    pdf_figure_extraction_max_tokens: int = 8192
+    pdf_min_size_kb_for_enhanced: int = 200

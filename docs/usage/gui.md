@@ -14,6 +14,7 @@ Opens `http://localhost:8501`.
 - **Debate rounds** — max synthesis iterations per phase
 - **Physics domains** — GPD domain list (e.g. `condensed_matter`, `qft`, `nuclear`)
 - **GPD toggle** — enable or disable physics verification servers
+- **Enhanced PDF extraction** — enable/disable the two-pass figure-extraction pipeline for PDF documents
 - **Models** — select Claude model per agent type
 
 ## Workflow
