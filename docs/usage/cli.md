@@ -14,10 +14,12 @@ mtf   # interactive mode — you are prompted for everything
 | `--n-fitting` | `3` | Parallel fitting agents per hypothesis |
 | `--n-qualitative` | `3` | Parallel qualitative evaluation agents (used with `--no-fitting`) |
 | `--n-reviewer` | `3` | Parallel reviewer agents |
+| `--n-proposal` | `2` | Parallel measurement proposal agents |
 | `--max-debate-rounds` | `3` | Max debate rounds before auto-proceeding |
 | `--literature-model` | `claude-opus-4-6` | Model for literature agents |
 | `--fitting-model` | `claude-opus-4-6` | Model for fitting agents |
 | `--reviewer-model` | `claude-opus-4-6` | Model for reviewer agents |
+| `--proposal-model` | `claude-opus-4-6` | Model for proposal agents |
 | `--debate-model` | `claude-opus-4-6` | Model for debate synthesis |
 | `--image-digest-model` | `claude-opus-4-6` | Model for image digestion |
 | `--images` | _(none)_ | Image files to digest (PNG, JPG, GIF, WebP) |

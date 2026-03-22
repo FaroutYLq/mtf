@@ -106,6 +106,7 @@ def _streamlit_app() -> None:
         n_literature = st.slider("Literature agents", 1, 6, 3)
         n_fitting = st.slider("Fitting agents", 1, 6, 3)
         n_reviewer = st.slider("Reviewer agents", 1, 6, 3)
+        n_proposal = st.slider("Proposal agents", 1, 4, 2)
         max_debate_rounds = st.slider("Max debate rounds", 1, 5, 3)
         skip_fitting = st.checkbox("Skip fitting phase (qualitative evaluation only)", value=False)
         n_qualitative = st.slider("Qualitative evaluation agents", 1, 6, 3)
@@ -159,6 +160,7 @@ def _streamlit_app() -> None:
                 n_fitting=n_fitting,
                 n_qualitative=n_qualitative,
                 n_reviewer=n_reviewer,
+                n_proposal=n_proposal,
                 max_debate_rounds=max_debate_rounds,
                 physics_domains=physics_domains or ["condensed_matter"],
                 enable_gpd_mcp=enable_gpd,
