@@ -8,17 +8,17 @@ class MTFConfig:
     """Top-level configuration for an MTF run."""
 
     # Agent counts
-    n_literature: int = 3
-    n_fitting: int = 3
-    n_qualitative: int = 3
-    n_reviewer: int = 3
+    n_literature: int = 2
+    n_fitting: int = 2
+    n_qualitative: int = 2
+    n_reviewer: int = 2
 
     # Model selection
-    literature_model: str = "claude-opus-4-6"
-    fitting_model: str = "claude-opus-4-6"
-    reviewer_model: str = "claude-opus-4-6"
-    debate_model: str = "claude-opus-4-6"
-    image_digest_model: str = "claude-opus-4-6"
+    literature_model: str = "claude-haiku-4-5-20251001"
+    fitting_model: str = "claude-sonnet-4-6"
+    reviewer_model: str = "claude-sonnet-4-6"
+    debate_model: str = "claude-sonnet-4-6"
+    image_digest_model: str = "claude-sonnet-4-6"
 
     # Debate loop controls
     max_debate_rounds: int = 3
@@ -41,7 +41,7 @@ class MTFConfig:
     )
     # Auto domain classification (Addition 1)
     auto_detect_domains: bool = True
-    gpd_domain_detection_max_domains: int = 4
+    gpd_domain_detection_max_domains: int = 3
     # Literature plausibility screen (Addition 5)
     literature_plausibility_screen: bool = True
     auto_reject_physics_failures: bool = False
@@ -51,8 +51,8 @@ class MTFConfig:
 
     # Proposal agent
     n_proposal: int = 2
-    proposal_model: str = "claude-opus-4-6"
-    followup_model: str = "claude-opus-4-6"
+    proposal_model: str = "claude-sonnet-4-6"
+    followup_model: str = "claude-sonnet-4-6"
 
     # PDF enhanced extraction
     pdf_enhanced_extraction: bool = True
