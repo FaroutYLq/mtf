@@ -24,6 +24,7 @@ class MemoryKind(str, Enum):
     DOMAIN_CLASSIFICATION = "domain_classification"  # auto-detected domain classification (audit trail)
     QUALITATIVE_EVAL = "qualitative_eval"  # qualitative hypothesis evaluation (used when fitting is skipped)
     FITTING_SKIPPED = "fitting_skipped"    # marker written when --no-fitting is active
+    PROPOSALS = "proposals"
 
 
 @dataclass

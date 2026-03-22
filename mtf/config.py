@@ -48,3 +48,7 @@ class MTFConfig:
     # Fitting convention check (Addition 3)
     fitting_convention_check: bool = True
     fitting_max_convention_retries: int = 1
+
+    # Proposal agent
+    n_proposal: int = 2
+    proposal_model: str = "claude-opus-4-6"

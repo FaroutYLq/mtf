@@ -70,6 +70,15 @@ class DebateEngine:
                 "should rank above chi²=0.9 with check 5.1 FAIL."
             )
             system = base_system + physics_criterion
+        elif phase == "proposals":
+            proposals_criterion = (
+                "\n\nYou are synthesizing measurement proposals from multiple expert physicists. "
+                "Combine these into a single prioritized, deduplicated list of proposed measurements "
+                "ordered by discriminating power (HIGH → MEDIUM → LOW). Remove redundant proposals, "
+                "merge overlapping ones, and present a clear 'Bottom line' recommendation. "
+                "Give these proposals prominent emphasis — they are the primary actionable output."
+            )
+            system = base_system + proposals_criterion
         else:
             system = base_system
 
