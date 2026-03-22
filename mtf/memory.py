@@ -19,6 +19,9 @@ class MemoryKind(str, Enum):
     # GPD MCP integration
     CONVENTIONS = "conventions"        # physics convention lock from gpd-conventions
     PHYSICS_VERDICT = "physics_verdict"  # structured check results from gpd-verification
+    FITTING_WARNINGS = "fitting_warnings"  # pre-dispatch pitfall warnings from pattern library + error classes
+    DOMAIN_PATTERNS = "domain_patterns"    # cross-session patterns pre-fetched at literature phase start
+    DOMAIN_CLASSIFICATION = "domain_classification"  # auto-detected domain classification (audit trail)
 
 
 @dataclass

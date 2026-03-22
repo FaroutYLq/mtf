@@ -2,19 +2,31 @@
 
 from __future__ import annotations
 
+import re
+from typing import TYPE_CHECKING, Any
+
 import anthropic
 
 from mtf.config import MTFConfig
 from mtf.memory import MemoryKind, SharedMemory
 
+if TYPE_CHECKING:
+    from mtf.tools.gpd_mcp import GPDMCPClient
+
 
 class DebateEngine:
     """Single-shot Anthropic API call that synthesizes N agent reports."""
 
-    def __init__(self, config: MTFConfig, memory: SharedMemory) -> None:
+    def __init__(
+        self,
+        config: MTFConfig,
+        memory: SharedMemory,
+        gpd: GPDMCPClient | None = None,
+    ) -> None:
         self._config = config
         self._memory = memory
         self._client = anthropic.Anthropic()
+        self._gpd = gpd
 
     async def synthesize(
         self,
@@ -25,6 +37,8 @@ class DebateEngine:
         """Synthesize reports from multiple agents into one summary.
 
         Not an agentic call — a plain messages.create() for speed.
+        For fitting and review phases, appends an objective dimensional check
+        postscript using GPD if available (Addition 8).
         """
         import asyncio
 
@@ -84,5 +98,40 @@ class DebateEngine:
             messages=[{"role": "user", "content": user_content}],
         )
         summary: str = response.content[0].text  # type: ignore[index]
+
+        # Addition 8: dimensional check postscript — objective, no second LLM call.
+        # The postscript is intentionally embedded in the DEBATE memory entry so that
+        # downstream agents reading MemoryKind.DEBATE see the objective check alongside
+        # the synthesis.  The same result is also stored as PHYSICS_VERDICT for targeted
+        # filtering in the review phase.
+        if self._gpd is not None and phase in ("fitting", "review"):
+            summary = await self._append_dimensional_check(summary, phase)
+
         self._memory.add(MemoryKind.DEBATE, summary, phase=phase)
+        return summary
+
+    async def _append_dimensional_check(self, summary: str, phase: str) -> str:
+        """Extract equations from summary and run dimensional_check as a postscript."""
+        import asyncio
+
+        # Extract LaTeX inline equations and dimensional expressions (max 5 candidates)
+        latex_exprs = re.findall(r'\$([^$]{3,100})\$', summary)
+        dim_exprs = re.findall(r'\[[A-Z]\][^\n.]{0,60}', summary)
+        candidates = (latex_exprs + dim_exprs)[:5]
+        if not candidates:
+            return summary
+
+        check_result = await asyncio.to_thread(
+            self._gpd.call, "verification", "dimensional_check",
+            expressions=candidates,
+        )
+        if check_result:
+            self._memory.add(
+                MemoryKind.PHYSICS_VERDICT,
+                check_result,
+                source="debate_dimensional_check",
+                phase=phase,
+            )
+            summary = summary + "\n\n--- OBJECTIVE DIMENSIONAL CHECK ---\n" + check_result
+
         return summary

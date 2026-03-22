@@ -25,6 +25,7 @@ _SERVER_MODULES: dict[str, str] = {
     "protocols": "gpd.mcp.servers.protocols_server",
     "conventions": "gpd.mcp.servers.conventions_server",
     "patterns": "gpd.mcp.servers.patterns_server",
+    "skills": "gpd.mcp.servers.skills_server",
 }
 
 
@@ -130,6 +131,14 @@ class GPDMCPClient:
         except Exception as exc:
             logger.warning("GPD tool call %s/%s failed: %s", server, tool_name, exc)
             return ""
+
+    async def async_call(self, server: str, tool_name: str, **kwargs: Any) -> str:
+        """Async wrapper around call() for use inside asyncio.gather() fan-outs.
+
+        Offloads the blocking wait to a thread-pool thread so it does not block
+        the main asyncio event loop.
+        """
+        return await asyncio.to_thread(self.call, server, tool_name, **kwargs)
 
     def make_tool(self, server: str, tool_name: str, description: str) -> sdk.Tool | None:
         """Return an sdk.Tool backed by the given MCP server tool.

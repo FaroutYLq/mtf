@@ -29,6 +29,9 @@ the experimental phenomenon provided by the user.
       - Known failure modes: from check_error_classes results
    d. Key equations or models from the literature
    e. Error-prone aspects flagged per hypothesis based on check_error_classes results
+5. When you find a systematic error pattern in a class of papers (wrong conventions,
+   missing factors, sign errors), call `add_pattern(category='convention-pitfall', ...)`
+   to record it in the cross-session pattern store for future runs.
 
 Prefer first-principles hypotheses over phenomenological curve fits. Be precise, cite
 paper titles and authors."""
@@ -63,6 +66,7 @@ class LiteratureAgent(BaseAgent):
                 MemoryKind.USER_FEEDBACK,
                 MemoryKind.IMAGE_DATA,
                 MemoryKind.CONVENTIONS,
+                MemoryKind.DOMAIN_PATTERNS,
             ),
         )
         self._memory.add(

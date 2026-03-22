@@ -119,19 +119,31 @@ Install with `pip install -e ".[dev,gpd]"`. Controlled by `config.enable_gpd_mcp
 | `protocols` | `route_protocol`, `get_protocol` | GPD provides canonical step-by-step methodology with checkpoints for each physics domain. FittingAgent follows these instead of inventing ad-hoc procedures. |
 | `conventions` | `subfield_defaults`, `convention_check` | GPD tracks 18 standard convention fields (metric signature, Fourier convention, natural units, gauge choice, etc.) across 14 subdomains. Prevents silent convention mismatches between agents. |
 | `patterns` | `lookup_pattern`, `add_pattern`, `seed_patterns` | GPD's `~/.gpd/` pattern store is the only persistent cross-session memory in the mtf pipeline. Errors found in one run surface in future runs on the same domain. |
+| `skills` | `list_skills`, `route_skill` | Used by `_classify_domains()` to auto-detect physics subfields from the phenomenon description; also available as an agent tool for capability discovery. |
 
 **`GPDMCPClient`** runs a dedicated background event loop in a daemon thread. Each server is a subprocess communicating over stdio MCP protocol. `make_tool(server, tool_name, description, params=)` returns an `sdk.Tool` (or `None` if unavailable), which phases filter into agent tool lists. `call(server, tool_name, **kwargs)` provides synchronous access for phase-level one-shot calls (e.g. convention locking, seeding patterns). `async_call()` offloads the blocking wait to a thread pool for use inside `asyncio.gather()` fan-outs.
 
 **How GPD tools flow to each agent**:
-- `LiteratureAgent` receives: `check_error_classes` (flag error-prone hypotheses), `route_protocol` (identify correct methodology)
-- `FittingAgent` receives: `route_protocol` + `get_protocol` (follow canonical procedure), `subfield_defaults` (correct conventions)
-- `ReviewerAgent` receives: all 8 tools above — `get_checklist`, `run_check` (5.1/5.2/5.3/5.18), `dimensional_check`, `limiting_case_check`, `check_error_classes`, `get_detection_strategy`, `lookup_pattern`, `add_pattern`
+- `LiteratureAgent` receives: `check_error_classes` (flag error-prone hypotheses), `route_protocol` (identify correct methodology), `lookup_pattern` (surface historical errors), `add_pattern` (record newly found systematic errors)
+- `FittingAgent` receives: `route_protocol` + `get_protocol` (follow canonical procedure), `subfield_defaults` (correct conventions), `convention_check` (pre-exec convention validation), `add_pattern` (record convergence failures)
+- `ReviewerAgent` receives: all verification tools — `get_checklist`, `run_check` (5.1/5.2/5.3/5.18), `dimensional_check`, `limiting_case_check`, `check_error_classes`, `get_detection_strategy`, `lookup_pattern`, `add_pattern`
 
 **`MemoryKind` values for GPD data**:
 - `CONVENTIONS` — physics convention snapshot locked per domain at the start of the literature phase; included in all agent prompt contexts
-- `PHYSICS_VERDICT` — structured check results from the verification server; injected into debate synthesis context
+- `PHYSICS_VERDICT` — structured check results from the verification server; written by the fitting phase (`_run_phase_physics_checks`), literature phase (plausibility screen), and debate engine (dimensional check postscript); injected into debate synthesis context
+- `FITTING_WARNINGS` — pre-dispatch pitfall warnings from pattern library + error class lookup; written by `_prefetch_fitting_warnings()` before the fitting fan-out; consumed by `FittingAgent` via `extra_kinds`
+- `DOMAIN_PATTERNS` — cross-session convention-pitfall patterns pre-fetched at literature phase start; consumed by `LiteratureAgent` and `FittingAgent` via `extra_kinds`
+- `DOMAIN_CLASSIFICATION` — audit trail of auto-detected physics domains; informational only, not consumed by agents
 
-**Pipeline flow**: conventions are locked once in the literature phase via `subfield_defaults` (called once per domain in `config.physics_domains`). All three agent types accept `gpd_tools: list | None` for backward compatibility. `DebateEngine.synthesize()` conditionally adds a physics-first ranking criterion to the system prompt for fitting and review phases (not literature). Conventions and physics verdicts from memory are appended to the user content block sent to the synthesis call.
+**Pipeline flow**: `MTFOrchestrator._classify_domains()` runs after `seed_patterns` and before the literature phase; it calls `route_protocol` and `route_skill` to detect physics domains from the phenomenon text and overwrites `config.physics_domains` ephemerally (controlled by `config.auto_detect_domains`). Conventions are then locked via `subfield_defaults` per domain; cross-session domain patterns are pre-fetched. Literature debate synthesis is followed by `_screen_hypothesis_plausibility()` which calls `limiting_case_check` per candidate hypothesis and shows `[PASS]/[WARN]/[FAIL]` badges before the user approval gate (`config.literature_plausibility_screen`). Before the fitting fan-out, `_prefetch_fitting_warnings()` queries `lookup_pattern` and `check_error_classes` per hypothesis. `FittingAgent.fit()` runs a `convention_check` on generated code before `exec()` and retries once on `FAIL` (`config.fitting_convention_check`, `config.fitting_max_convention_retries`). After the fitting fan-out, `_run_phase_physics_checks()` runs checks 5.1 and 5.3 per fit report and writes results to `PHYSICS_VERDICT`, so `DebateEngine.synthesize()` synthesises against real check data. For fitting and review phases, `DebateEngine` also runs a `dimensional_check` postscript on equation expressions extracted from the synthesis text and appends the result. All three agent types accept `gpd_tools: list | None` and `gpd: GPDMCPClient | None` for backward compatibility.
+
+**New `MTFConfig` fields** (all default to safe values so existing runs are unaffected):
+- `auto_detect_domains: bool = True` — enable `_classify_domains()` pre-flight
+- `gpd_domain_detection_max_domains: int = 4` — cap on auto-detected domains
+- `literature_plausibility_screen: bool = True` — enable `limiting_case_check` screen after literature debate
+- `auto_reject_physics_failures: bool = False` — if True, CRITICAL-FAIL hypotheses are filtered from the approved list
+- `fitting_convention_check: bool = True` — enable pre-exec `convention_check` in `FittingAgent.fit()`
+- `fitting_max_convention_retries: int = 1` — retries on convention FAIL before proceeding to `exec()`
 
 **When adding new physics capabilities to mtf**: check whether GPD already provides it as an MCP tool before implementing from scratch. The `gpd-mcp-skills` server (`list_skills`, `route_skill`) can discover available GPD capabilities programmatically.
 

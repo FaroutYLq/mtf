@@ -35,5 +35,14 @@ class MTFConfig:
         default_factory=lambda: ["condensed_matter"],
     )  # one or more domains; passed to get_checklist / subfield_defaults
     gpd_servers: list[str] = field(
-        default_factory=lambda: ["verification", "errors", "protocols", "conventions", "patterns"]
+        default_factory=lambda: ["verification", "errors", "protocols", "conventions", "patterns", "skills"]
     )
+    # Auto domain classification (Addition 1)
+    auto_detect_domains: bool = True
+    gpd_domain_detection_max_domains: int = 4
+    # Literature plausibility screen (Addition 5)
+    literature_plausibility_screen: bool = True
+    auto_reject_physics_failures: bool = False
+    # Fitting convention check (Addition 3)
+    fitting_convention_check: bool = True
+    fitting_max_convention_retries: int = 1

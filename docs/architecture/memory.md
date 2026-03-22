@@ -33,7 +33,10 @@ class MemoryEntry:
 | `FIT_RESULT` | `FittingAgent` | The `result` dict from one fitting agent's `exec()` run, formatted as text.  Carries `agent_id` and `hypothesis` metadata. |
 | `REVIEW` | `ReviewerAgent` | Full review report from one reviewer agent instance, including per-hypothesis SUPPORTED/PLAUSIBLE/SPECULATIVE/REJECTED verdicts with check IDs cited. |
 | `CONVENTIONS` | Literature phase (GPD) | Physics convention defaults for one subfield, returned by GPD `subfield_defaults`.  Carries `domain` metadata.  Locked once per session before the first literature fan-out. |
-| `PHYSICS_VERDICT` | Review phase (GPD) | Structured check results from GPD verification tools, stored if any check returns structured pass/fail data. |
+| `PHYSICS_VERDICT` | Fitting phase, literature phase, `DebateEngine` (all GPD) | Structured check results from GPD verification tools.  Written by: `_run_phase_physics_checks` (checks 5.1 + 5.3 per fit report), `_screen_hypothesis_plausibility` (limiting-case screen), `FittingAgent.fit()` (pre-exec convention check), and `DebateEngine` (dimensional check postscript for fitting/review phases).  Injected into every debate synthesis context. |
+| `FITTING_WARNINGS` | Fitting phase (GPD) | Pre-dispatch pitfall warnings combining domain `lookup_pattern` results (sign-error, convergence-issue categories) and `check_error_classes` output per hypothesis.  Written by `_prefetch_fitting_warnings()` before the fitting fan-out.  Carries `domain` and `hypothesis` metadata. |
+| `DOMAIN_PATTERNS` | Literature phase (GPD) | Cross-session convention-pitfall patterns pre-fetched before the first literature fan-out via `lookup_pattern(category="convention-pitfall")`.  Carries `domain` and `source` metadata. |
+| `DOMAIN_CLASSIFICATION` | `MTFOrchestrator._classify_domains()` | Audit trail of auto-detected physics domains when `config.auto_detect_domains=True`.  Records either the detected list or a fallback notice.  Informational only — not consumed by agents via `extra_kinds`. |
 | `TOOLKIT_DIGEST` | `ToolBuilderAgent` | Summary of data and model items parsed from complex user-supplied input by the tool-builder agent. |
 
 ---
@@ -70,9 +73,9 @@ Task: Investigate the following experimental phenomenon …
 
 | Agent | `extra_kinds` passed to `_query()` |
 |-------|-----------------------------------|
-| `LiteratureAgent.investigate()` | `USER_FEEDBACK`, `IMAGE_DATA`, `CONVENTIONS` |
-| `FittingAgent.identify_needed_toolkit_items()` | `LITERATURE`, `DEBATE`, `IMAGE_DATA`, `CONVENTIONS` |
-| `FittingAgent.fit()` | `LITERATURE`, `DEBATE`, `USER_FEEDBACK`, `IMAGE_DATA`, `CONVENTIONS` |
+| `LiteratureAgent.investigate()` | `USER_FEEDBACK`, `IMAGE_DATA`, `CONVENTIONS`, `DOMAIN_PATTERNS` |
+| `FittingAgent.identify_needed_toolkit_items()` | `LITERATURE`, `DEBATE`, `IMAGE_DATA`, `CONVENTIONS`, `FITTING_WARNINGS`, `DOMAIN_PATTERNS` |
+| `FittingAgent.fit()` | `LITERATURE`, `DEBATE`, `USER_FEEDBACK`, `IMAGE_DATA`, `CONVENTIONS`, `FITTING_WARNINGS`, `DOMAIN_PATTERNS` |
 | `ReviewerAgent.review()` | `LITERATURE`, `DEBATE`, `FIT_RESULT`, `USER_FEEDBACK`, `IMAGE_DATA`, `CONVENTIONS`, `PHYSICS_VERDICT` |
 
 `DebateEngine.synthesize()` always calls `memory.format_context()` with no arguments,
