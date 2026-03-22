@@ -121,10 +121,9 @@ async def run_review_phase(
         proposal_reports,
         phase="proposals",
         extra_context=f"Original phenomenon: {phenomenon}",
+        store_as_debate=False,
     )
     memory.add(MemoryKind.PROPOSALS, proposal_synthesis)
-
-    await interface.show(proposal_synthesis, title="MTF: Proposed Measurements")
 
     final_report = f"{review_synthesis}\n\n---\n\n## Proposed Measurements\n\n{proposal_synthesis}"
 

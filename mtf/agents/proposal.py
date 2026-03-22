@@ -38,7 +38,7 @@ class ProposalAgent(BaseAgent):
         super().__init__(
             agent_id=agent_id,
             model=model,
-            tools=[*extra_tools],
+            tools=extra_tools,
             memory=memory,
             system_prompt=_SYSTEM_PROMPT,
         )
@@ -55,9 +55,9 @@ class ProposalAgent(BaseAgent):
                 MemoryKind.IMAGE_DATA,
                 MemoryKind.LITERATURE,
                 MemoryKind.DEBATE,
+                MemoryKind.HYPOTHESIS,
                 MemoryKind.FIT_RESULT,
                 MemoryKind.USER_FEEDBACK,
-                MemoryKind.REVIEW,
                 MemoryKind.CONVENTIONS,
                 MemoryKind.PHYSICS_VERDICT,
             ),

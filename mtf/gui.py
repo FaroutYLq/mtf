@@ -128,6 +128,16 @@ def _streamlit_app() -> None:
             physics_domain_options,
             default=["condensed_matter"],
         )
+        reviewer_model = st.selectbox(
+            "Reviewer model",
+            ["claude-opus-4-6", "claude-sonnet-4-6", "claude-haiku-4-5-20251001"],
+            index=1,
+        )
+        proposal_model = st.selectbox(
+            "Proposal model",
+            ["claude-opus-4-6", "claude-sonnet-4-6", "claude-haiku-4-5-20251001"],
+            index=0,
+        )
         enable_gpd = st.checkbox("Enable GPD physics verification", value=True)
 
     # ------------------------------------------------------------------
@@ -165,6 +175,8 @@ def _streamlit_app() -> None:
                 physics_domains=physics_domains or ["condensed_matter"],
                 enable_gpd_mcp=enable_gpd,
                 fitting_enabled=not skip_fitting,
+                reviewer_model=reviewer_model,
+                proposal_model=proposal_model,
             )
 
             ui_queue: "queue.Queue[tuple[str, Any, Any]]" = queue.Queue()

@@ -33,12 +33,19 @@ class DebateEngine:
         reports: list[str],
         phase: str,
         extra_context: str = "",
+        store_as_debate: bool = True,
     ) -> str:
         """Synthesize reports from multiple agents into one summary.
 
         Not an agentic call — a plain messages.create() for speed.
         For fitting and review phases, appends an objective dimensional check
         postscript using GPD if available (Addition 8).
+
+        Args:
+            store_as_debate: If True (default), store the result as
+                MemoryKind.DEBATE.  Pass False when the caller handles
+                storage itself (e.g. review_phase stores proposals as
+                MemoryKind.PROPOSALS to avoid duplicating the text).
         """
         import asyncio
 
@@ -116,7 +123,8 @@ class DebateEngine:
         if self._gpd is not None and phase in ("fitting", "review", "qualitative"):
             summary = await self._append_dimensional_check(summary, phase)
 
-        self._memory.add(MemoryKind.DEBATE, summary, phase=phase)
+        if store_as_debate:
+            self._memory.add(MemoryKind.DEBATE, summary, phase=phase)
         return summary
 
     async def _append_dimensional_check(self, summary: str, phase: str) -> str:
