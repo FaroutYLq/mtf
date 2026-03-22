@@ -295,7 +295,7 @@ Runs concurrently with `ReviewerAgent` instances inside the review phase. Propos
 |---|---|
 | **Phase** | ④ Follow-up Chat (post-report, optional) |
 | **API** | `sdk.query()` (agentic, no tools) |
-| **Memory context read** | `LITERATURE`, `DEBATE`, `HYPOTHESIS`, `FIT_RESULT`, `REVIEW`, `PROPOSALS`, `USER_FEEDBACK`, `IMAGE_DATA`, `CONVENTIONS`, `PHYSICS_VERDICT`, `FITTING_WARNINGS`, `QUALITATIVE_EVAL` |
+| **Memory context read** | `LITERATURE`, `DEBATE`, `HYPOTHESIS`, `FIT_RESULT`, `REVIEW`, `PROPOSALS`, `USER_FEEDBACK`, `IMAGE_DATA`, `CONVENTIONS`, `PHYSICS_VERDICT`, `FITTING_WARNINGS`, `QUALITATIVE_EVAL`, `DOMAIN_PATTERNS`, `FITTING_SKIPPED`, `TOOLKIT_DIGEST` |
 | **Memory written** | None |
 
 Created by `MTFOrchestrator._run_followup_chat()` after the final report is shown.  A single

@@ -66,7 +66,8 @@ flowchart TD
         direction TB
         CQ{"Follow-up\nquestions?"}
         CA["FollowUpChatAgent\nfull memory context\nmulti-turn Q&A loop"]
-        CQ -->|"yes — loop until exit"| CA
+        CQ -->|"yes"| CA
+        CA -->|"next question"| CA
     end
 
     GPD -.->|"tools"| L
