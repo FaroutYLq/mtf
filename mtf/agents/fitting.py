@@ -9,6 +9,7 @@ from mtf.agents.base import BaseAgent
 from mtf.memory import MemoryKind, SharedMemory
 from mtf.toolkit.registry import ToolkitRegistry
 from mtf.tools.fitting_tools import run_fitting_code
+from mtf.utils import strip_fences
 
 if TYPE_CHECKING:
     from mtf.config import MTFConfig
@@ -42,22 +43,6 @@ experimental physics. Given a hypothesis and experimental data, you:
    runs on this domain.
 
 Always write clean, well-commented fitting code."""
-
-
-def _strip_fences(code: str) -> str:
-    """Strip markdown code fences from a code string."""
-    if "```" not in code:
-        return code
-    lines = code.splitlines()
-    code_lines = []
-    in_block = False
-    for line in lines:
-        if line.strip().startswith("```"):
-            in_block = not in_block
-            continue
-        if in_block:
-            code_lines.append(line)
-    return "\n".join(code_lines)
 
 
 class FittingAgent(BaseAgent):
@@ -131,7 +116,7 @@ class FittingAgent(BaseAgent):
                 MemoryKind.DOMAIN_PATTERNS,
             ),
         )
-        code = _strip_fences(code)
+        code = strip_fences(code)
 
         # Pre-exec convention check (Addition 3): check generated code for convention
         # violations before running it; retry once if violations are found.
@@ -176,7 +161,7 @@ class FittingAgent(BaseAgent):
                                 MemoryKind.DOMAIN_PATTERNS,
                             ),
                         )
-                        code = _strip_fences(code)
+                        code = strip_fences(code)
                 else:
                     break  # No violation — proceed to exec
 

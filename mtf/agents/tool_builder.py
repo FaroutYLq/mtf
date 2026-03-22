@@ -18,6 +18,7 @@ from typing import Any, Callable
 
 from mtf.agents.base import BaseAgent
 from mtf.memory import MemoryKind, SharedMemory
+from mtf.utils import strip_fences
 
 import numpy as np
 from lmfit import Model, Parameters, minimize
@@ -125,17 +126,7 @@ class ToolBuilderAgent(BaseAgent):
         )
 
         # Strip markdown fences if the model added them anyway
-        if "```" in code:
-            lines = code.splitlines()
-            code_lines: list[str] = []
-            in_block = False
-            for line in lines:
-                if line.strip().startswith("```"):
-                    in_block = not in_block
-                    continue
-                if in_block:
-                    code_lines.append(line)
-            code = "\n".join(code_lines)
+        code = strip_fences(code)
 
         data, models, err = _exec_digest_code(code)
 
