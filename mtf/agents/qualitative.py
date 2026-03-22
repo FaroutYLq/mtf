@@ -52,7 +52,6 @@ class QualitativeEvaluationAgent(BaseAgent):
                 MemoryKind.USER_FEEDBACK,
                 MemoryKind.CONVENTIONS,
                 MemoryKind.PHYSICS_VERDICT,
-                MemoryKind.FITTING_WARNINGS,
             ),
         )
         self._memory.add(

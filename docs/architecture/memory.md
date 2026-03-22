@@ -78,7 +78,7 @@ Task: Investigate the following experimental phenomenon …
 | `LiteratureAgent.investigate()` | `USER_FEEDBACK`, `IMAGE_DATA`, `CONVENTIONS`, `DOMAIN_PATTERNS` |
 | `FittingAgent.identify_needed_toolkit_items()` | `LITERATURE`, `DEBATE`, `IMAGE_DATA`, `CONVENTIONS`, `FITTING_WARNINGS`, `DOMAIN_PATTERNS` |
 | `FittingAgent.fit()` | `LITERATURE`, `DEBATE`, `USER_FEEDBACK`, `IMAGE_DATA`, `CONVENTIONS`, `FITTING_WARNINGS`, `DOMAIN_PATTERNS` |
-| `QualitativeEvaluationAgent.evaluate()` | `IMAGE_DATA`, `LITERATURE`, `DEBATE`, `USER_FEEDBACK`, `CONVENTIONS`, `PHYSICS_VERDICT`, `FITTING_WARNINGS` |
+| `QualitativeEvaluationAgent.evaluate()` | `IMAGE_DATA`, `LITERATURE`, `DEBATE`, `USER_FEEDBACK`, `CONVENTIONS`, `PHYSICS_VERDICT` |
 | `ReviewerAgent.review()` | `LITERATURE`, `DEBATE`, `FIT_RESULT`, `USER_FEEDBACK`, `IMAGE_DATA`, `CONVENTIONS`, `PHYSICS_VERDICT`, `QUALITATIVE_EVAL`, `FITTING_SKIPPED` |
 
 `DebateEngine.synthesize()` always calls `memory.format_context()` with no arguments,

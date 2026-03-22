@@ -25,12 +25,6 @@ async def run_qualitative_phase(
 
     Used as a substitute for the fitting phase when ``config.fitting_enabled`` is False.
     """
-    await interface.show(
-        f"**Qualitative evaluation phase** — no fitting data available. "
-        f"Dispatching {config.n_fitting} qualitative evaluation agents...",
-        title="MTF: Qualitative Evaluation",
-    )
-
     # Build GPD tools for QualitativeEvaluationAgent — same set as ReviewerAgent
     gpd_tools: list[Any] = []
     if gpd is not None:
@@ -72,37 +66,47 @@ async def run_qualitative_phase(
                 "description, detection, prevention, example, test_value."),
         ] if t is not None]
 
-    # Fan-out: create n_fitting QualitativeEvaluationAgent instances and gather results
-    agents = [
-        QualitativeEvaluationAgent(
-            agent_id=f"qual-{i}",
-            model=config.fitting_model,
-            memory=memory,
-            gpd_tools=gpd_tools,
+    synthesis = ""
+    for round_num in range(1, config.max_debate_rounds + 1):
+        await interface.show(
+            f"**Qualitative evaluation phase — round {round_num}/{config.max_debate_rounds}** "
+            f"— no fitting data available. "
+            f"Dispatching {config.n_qualitative} qualitative evaluation agents...",
+            title="MTF: Qualitative Evaluation",
         )
-        for i in range(config.n_fitting)
-    ]
-    reports = await asyncio.gather(
-        *(a.evaluate(phenomenon, hypotheses) for a in agents)
-    )
 
-    synthesis = await debate_engine.synthesize(
-        list(reports),
-        phase="qualitative",
-        extra_context=f"Phenomenon: {phenomenon}\nHypotheses: {hypotheses}",
-    )
+        # Fan-out: create n_qualitative QualitativeEvaluationAgent instances and gather results
+        agents = [
+            QualitativeEvaluationAgent(
+                agent_id=f"qual-{i}",
+                model=config.fitting_model,
+                memory=memory,
+                gpd_tools=gpd_tools,
+            )
+            for i in range(config.n_qualitative)
+        ]
+        reports = await asyncio.gather(
+            *(a.evaluate(phenomenon, hypotheses) for a in agents)
+        )
 
-    await interface.show(synthesis, title="Qualitative Evaluation")
+        # Mark fitting as skipped before synthesis so DebateEngine sees it in context
+        memory.add(
+            MemoryKind.FITTING_SKIPPED,
+            "Fitting phase was skipped (--no-fitting). Qualitative evaluation substituted.",
+        )
 
-    # Mark fitting as skipped
-    memory.add(
-        MemoryKind.FITTING_SKIPPED,
-        "Fitting phase was skipped (--no-fitting). Qualitative evaluation substituted.",
-    )
+        synthesis = await debate_engine.synthesize(
+            list(reports),
+            phase="qualitative",
+            extra_context=f"Phenomenon: {phenomenon}\nHypotheses: {hypotheses}",
+        )
 
-    # User approval loop
-    approved = await interface.confirm("Do you approve the qualitative evaluation?")
-    if not approved:
+        await interface.show(synthesis, title=f"Qualitative Evaluation (round {round_num})")
+
+        approved = await interface.confirm("Do you approve the qualitative evaluation?")
+        if approved:
+            break
+
         feedback = await interface.ask("Guidance for qualitative evaluation?")
         if feedback.strip():
             memory.add(MemoryKind.USER_FEEDBACK, feedback)

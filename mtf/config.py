@@ -10,6 +10,7 @@ class MTFConfig:
     # Agent counts
     n_literature: int = 3
     n_fitting: int = 3
+    n_qualitative: int = 3
     n_reviewer: int = 3
 
     # Model selection

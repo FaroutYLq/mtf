@@ -204,7 +204,7 @@ The fit output and hypothesis text are stored as `FIT_RESULT`.
 | **Phase** | ② Qualitative Evaluation (when `--no-fitting` is used) |
 | **API** | `sdk.query()` (agentic) |
 | **Tools** | GPD: `get_checklist`, `run_check`, `dimensional_check`, `limiting_case_check`, `check_error_classes`, `get_detection_strategy`, `lookup_pattern`, `add_pattern` |
-| **Memory context read** | `IMAGE_DATA`, `LITERATURE`, `DEBATE`, `USER_FEEDBACK`, `CONVENTIONS`, `PHYSICS_VERDICT`, `FITTING_WARNINGS` |
+| **Memory context read** | `IMAGE_DATA`, `LITERATURE`, `DEBATE`, `USER_FEEDBACK`, `CONVENTIONS`, `PHYSICS_VERDICT` |
 | **Memory written** | `QUALITATIVE_EVAL` |
 
 Used instead of `FittingAgent` when the pipeline runs with `--no-fitting`. N instances run

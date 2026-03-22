@@ -12,6 +12,7 @@ mtf   # interactive mode — you are prompted for everything
 |------|---------|-------------|
 | `--n-literature` | `3` | Parallel literature agents |
 | `--n-fitting` | `3` | Parallel fitting agents per hypothesis |
+| `--n-qualitative` | `3` | Parallel qualitative evaluation agents (used with `--no-fitting`) |
 | `--n-reviewer` | `3` | Parallel reviewer agents |
 | `--max-debate-rounds` | `3` | Max debate rounds before auto-proceeding |
 | `--literature-model` | `claude-opus-4-6` | Model for literature agents |

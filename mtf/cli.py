@@ -22,6 +22,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     p.add_argument("--n-literature", type=int, default=3)
     p.add_argument("--n-fitting", type=int, default=3)
+    p.add_argument("--n-qualitative", type=int, default=3)
     p.add_argument("--n-reviewer", type=int, default=3)
     p.add_argument("--literature-model", default="claude-opus-4-6")
     p.add_argument("--fitting-model", default="claude-opus-4-6")
@@ -90,6 +91,7 @@ def main() -> None:
     config = MTFConfig(
         n_literature=args.n_literature,
         n_fitting=args.n_fitting,
+        n_qualitative=args.n_qualitative,
         n_reviewer=args.n_reviewer,
         literature_model=args.literature_model,
         fitting_model=args.fitting_model,
