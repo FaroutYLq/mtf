@@ -51,9 +51,15 @@ flowchart TD
 
     subgraph REV ["③ REVIEW PHASE"]
         direction TB
-        R["R1 · R2 · R3\nK parallel agents\n+ GPD: get_checklist, run_check, check_error_classes,\nlookup_pattern, add_pattern"]
-        RD["🔀 Debate\nphysics-first ranking + dimensional check postscript"]
+        R["R1 · R2 · R3\nK parallel reviewer agents\n+ GPD: get_checklist, run_check, check_error_classes,\nlookup_pattern, add_pattern"]
+        P["P1 · P2\nN parallel proposal agents\n+ GPD: lookup_pattern, check_error_classes"]
+        RD["🔀 Review Debate\nphysics-first ranking + dimensional check postscript"]
+        PD["🔀 Proposal Synthesis\ndeduplicated, priority-ranked measurement list"]
+        FR["Final Report\nreview verdicts + ## Proposed Measurements"]
         R --> RD
+        P --> PD
+        RD --> FR
+        PD --> FR
     end
 
     GPD -.->|"tools"| L
@@ -309,6 +315,23 @@ physics-first ranking criterion as the fitting phase, and returns the final repo
 There is no user approval gate after the review phase; the report is returned directly to the
 caller.
 
+### Measurement Proposal Sub-Agents
+
+`N` `ProposalAgent` instances run **concurrently with** the reviewer agents in a single
+`asyncio.gather()` call.  Each agent reads the full accumulated memory context and proposes
+a prioritized list of new experiments and measurements that would discriminate between
+the competing hypotheses.  Proposals specify: observable to measure, expected signal per
+hypothesis, discriminating power (HIGH / MEDIUM / LOW), equipment requirements, and
+required sensitivity.
+
+`DebateEngine.synthesize(phase="proposals")` collects all N proposal reports and produces
+a deduplicated, priority-ranked list (HIGH discriminating power first) with a single
+"Bottom line" recommendation.  The result is stored as `MemoryKind.PROPOSALS` and appended
+to the final report under a `## Proposed Measurements` heading.
+
+Both synthesis calls (review verdicts and proposals) complete before the final report is
+returned to the user.
+
 ---
 
 ## Debate Engine internals
@@ -383,6 +406,7 @@ mtf/
 │   ├── fitting.py          FittingAgent
 │   ├── qualitative.py      QualitativeEvaluationAgent (--no-fitting mode)
 │   ├── reviewer.py         ReviewerAgent
+│   ├── proposal.py         ProposalAgent
 │   └── tool_builder.py     ToolBuilderAgent
 ├── phases/
 │   ├── literature_phase.py convention lock + debate loop + approval gate

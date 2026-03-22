@@ -24,9 +24,11 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--n-fitting", type=int, default=3)
     p.add_argument("--n-qualitative", type=int, default=3)
     p.add_argument("--n-reviewer", type=int, default=3)
+    p.add_argument("--n-proposal", type=int, default=2)
     p.add_argument("--literature-model", default="claude-opus-4-6")
     p.add_argument("--fitting-model", default="claude-opus-4-6")
     p.add_argument("--reviewer-model", default="claude-opus-4-6")
+    p.add_argument("--proposal-model", default="claude-opus-4-6")
     p.add_argument("--debate-model", default="claude-opus-4-6")
     p.add_argument("--max-debate-rounds", type=int, default=3)
     p.add_argument(
@@ -93,9 +95,11 @@ def main() -> None:
         n_fitting=args.n_fitting,
         n_qualitative=args.n_qualitative,
         n_reviewer=args.n_reviewer,
+        n_proposal=args.n_proposal,
         literature_model=args.literature_model,
         fitting_model=args.fitting_model,
         reviewer_model=args.reviewer_model,
+        proposal_model=args.proposal_model,
         debate_model=args.debate_model,
         max_debate_rounds=args.max_debate_rounds,
         image_digest_model=args.image_digest_model,

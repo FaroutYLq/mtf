@@ -265,6 +265,20 @@ The review report is stored as `REVIEW`.
 
 ---
 
+## ProposalAgent
+
+| | |
+|---|---|
+| **Phase** | ③ Review (parallel with ReviewerAgent) |
+| **API** | `sdk.query()` (agentic) |
+| **Tools** | GPD: `lookup_pattern`, `check_error_classes` |
+| **Memory context read** | `IMAGE_DATA`, `LITERATURE`, `DEBATE`, `HYPOTHESIS`, `FIT_RESULT`, `USER_FEEDBACK`, `CONVENTIONS`, `PHYSICS_VERDICT` |
+| **Memory written** | `PROPOSALS` |
+
+Runs concurrently with `ReviewerAgent` instances inside the review phase. Proposes a prioritized set of new measurements and experiments that would best discriminate between competing hypotheses. Each proposal includes: observable to measure, expected signal per hypothesis, discriminating power (HIGH / MEDIUM / LOW), equipment requirements, and required sensitivity. A "Bottom line" recommendation names the single most cost-effective measurement. Results are synthesized via `DebateEngine.synthesize(phase="proposals")` into a deduplicated, ranked proposals list that is appended to the final report as `## Proposed Measurements`.
+
+---
+
 ## ToolBuilderAgent
 
 | | |

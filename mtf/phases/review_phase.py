@@ -5,11 +5,12 @@ from __future__ import annotations
 import asyncio
 from typing import Any
 
+from mtf.agents.proposal import ProposalAgent
 from mtf.agents.reviewer import ReviewerAgent
 from mtf.config import MTFConfig
 from mtf.debate import DebateEngine
 from mtf.interface import HumanInterface
-from mtf.memory import SharedMemory
+from mtf.memory import MemoryKind, SharedMemory
 
 
 async def run_review_phase(
@@ -20,7 +21,7 @@ async def run_review_phase(
     debate_engine: DebateEngine,
     gpd: Any | None = None,
 ) -> str:
-    """Fan out K reviewer agents and synthesize a final report."""
+    """Fan out K reviewer agents and proposal agents, synthesize a final report."""
     # Build GPD tools for ReviewerAgent
     gpd_tools: list[Any] = []
     if gpd is not None:
@@ -62,8 +63,24 @@ async def run_review_phase(
                 "description, detection, prevention, example, test_value."),
         ] if t is not None]
 
+    # Build GPD tools for ProposalAgent (simpler subset)
+    proposal_gpd_tools: list[Any] = []
+    if gpd is not None:
+        proposal_gpd_tools = [t for t in [
+            gpd.make_tool("patterns", "lookup_pattern",
+                "Search the persistent cross-session physics error pattern library. "
+                "Input: domain (str), category (str: sign-error/factor-error/convention-pitfall/"
+                "convergence-issue/approximation-failure/dimensional-error), keywords (str). "
+                "Returns known patterns from previous runs that should be addressed by new measurements."),
+            gpd.make_tool("errors", "check_error_classes",
+                "Given a physics computation description, return the top-15 relevant error classes "
+                "from a catalog of 104 known physics errors. Use to identify systematic issues "
+                "that new measurements should resolve."),
+        ] if t is not None]
+
     await interface.show(
-        f"**Review phase**\n\nDispatching {config.n_reviewer} reviewer agents...",
+        f"**Review phase**\n\nDispatching {config.n_reviewer} reviewer agents "
+        f"and {config.n_proposal} proposal agents...",
         title="MTF: Review",
     )
 
@@ -76,13 +93,39 @@ async def run_review_phase(
         )
         for i in range(config.n_reviewer)
     ]
-    reports = await asyncio.gather(*(a.review(phenomenon) for a in agents))
 
-    final_report = await debate_engine.synthesize(
-        list(reports),
+    proposal_agents = [
+        ProposalAgent(
+            agent_id=f"proposal-{i}",
+            model=config.proposal_model,
+            memory=memory,
+            gpd_tools=proposal_gpd_tools,
+        )
+        for i in range(config.n_proposal)
+    ]
+
+    all_results = await asyncio.gather(
+        *(a.review(phenomenon) for a in agents),
+        *(a.propose(phenomenon) for a in proposal_agents),
+    )
+    reviewer_reports = list(all_results[:config.n_reviewer])
+    proposal_reports = list(all_results[config.n_reviewer:])
+
+    review_synthesis = await debate_engine.synthesize(
+        reviewer_reports,
         phase="review",
         extra_context=f"Original phenomenon: {phenomenon}",
     )
+
+    proposal_synthesis = await debate_engine.synthesize(
+        proposal_reports,
+        phase="proposals",
+        extra_context=f"Original phenomenon: {phenomenon}",
+        store_as_debate=False,
+    )
+    memory.add(MemoryKind.PROPOSALS, proposal_synthesis)
+
+    final_report = f"{review_synthesis}\n\n---\n\n## Proposed Measurements\n\n{proposal_synthesis}"
 
     await interface.show(final_report, title="Final Report")
     return final_report

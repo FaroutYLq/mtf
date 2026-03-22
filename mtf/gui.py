@@ -106,6 +106,7 @@ def _streamlit_app() -> None:
         n_literature = st.slider("Literature agents", 1, 6, 3)
         n_fitting = st.slider("Fitting agents", 1, 6, 3)
         n_reviewer = st.slider("Reviewer agents", 1, 6, 3)
+        n_proposal = st.slider("Proposal agents", 1, 4, 2)
         max_debate_rounds = st.slider("Max debate rounds", 1, 5, 3)
         skip_fitting = st.checkbox("Skip fitting phase (qualitative evaluation only)", value=False)
         n_qualitative = st.slider("Qualitative evaluation agents", 1, 6, 3)
@@ -126,6 +127,16 @@ def _streamlit_app() -> None:
             "Physics domains",
             physics_domain_options,
             default=["condensed_matter"],
+        )
+        reviewer_model = st.selectbox(
+            "Reviewer model",
+            ["claude-opus-4-6", "claude-sonnet-4-6", "claude-haiku-4-5-20251001"],
+            index=1,
+        )
+        proposal_model = st.selectbox(
+            "Proposal model",
+            ["claude-opus-4-6", "claude-sonnet-4-6", "claude-haiku-4-5-20251001"],
+            index=0,
         )
         enable_gpd = st.checkbox("Enable GPD physics verification", value=True)
 
@@ -159,10 +170,13 @@ def _streamlit_app() -> None:
                 n_fitting=n_fitting,
                 n_qualitative=n_qualitative,
                 n_reviewer=n_reviewer,
+                n_proposal=n_proposal,
                 max_debate_rounds=max_debate_rounds,
                 physics_domains=physics_domains or ["condensed_matter"],
                 enable_gpd_mcp=enable_gpd,
                 fitting_enabled=not skip_fitting,
+                reviewer_model=reviewer_model,
+                proposal_model=proposal_model,
             )
 
             ui_queue: "queue.Queue[tuple[str, Any, Any]]" = queue.Queue()
