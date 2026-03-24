@@ -108,16 +108,21 @@ Entries accumulate in chronological order within a single pipeline run:
 [DEBATE]           one per round (phase="literature")   (phase 1)
 [HYPOTHESIS]       one per approved hypothesis line     (phase 1 approval)
 # Fitting path (default):
+[FITTING_WARNINGS] 0 or more, per domain × hypothesis  (phase 2 pre-dispatch)
+[PHYSICS_VERDICT]  0 or more (convention check pre-exec)(phase 2 fit)
 [FIT_RESULT]       M × N_hypotheses entries             (phase 2)
+[PHYSICS_VERDICT]  0 or more (checks 5.1 + 5.3)        (phase 2 post-fit)
 [DEBATE]           one (phase="fitting")                (phase 2)
+[PHYSICS_VERDICT]  0 or more (dimensional postscript)   (phase 2 debate)
 # Qualitative path (--no-fitting):
 [QUALITATIVE_EVAL] N entries, one per eval agent        (phase 2)
 [FITTING_SKIPPED]  one flag entry                       (phase 2)
 [DEBATE]           one (phase="qualitative")            (phase 2)
 [REVIEW]           K entries, one per reviewer          (phase 3)
-[PHYSICS_VERDICT]  0 or more                            (phase 3)
+[PHYSICS_VERDICT]  0 or more (run_check per hypothesis) (phase 3)
 [DEBATE]           one (phase="review")                 (phase 3)
-[PROPOSALS]        one (proposal synthesis)                (phase 3)
+[PHYSICS_VERDICT]  0 or more (dimensional postscript)   (phase 3 debate)
+[PROPOSALS]        one (proposal synthesis)             (phase 3)
 ```
 
 ---

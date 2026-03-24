@@ -28,19 +28,24 @@ mtf/
 ├── debate.py               DebateEngine — single Anthropic messages.create() synthesis call
 ├── interface.py            HumanInterface ABC + CLIInterface (rich)
 ├── gui.py                  StreamlitInterface + Streamlit app — `mtf-gui` entry point
-├── orchestrator.py         MTFOrchestrator.run() — sequences all three phases
+├── orchestrator.py         MTFOrchestrator.run() — sequences all four phases + follow-up chat
 ├── cli.py                  `mtf` CLI entry point (argparse)
 ├── utils.py                Shared helpers — strip_fences() for LLM code extraction
 ├── agents/
 │   ├── base.py             BaseAgent — wraps sdk.query(), injects SharedMemory context
-│   ├── image_digest.py     ImageDigestAgent — Anthropic vision API, quantitative plot extraction
+│   ├── image_digest.py     ImageDigestAgent + FileDigestSubagent — Anthropic vision/doc API
 │   ├── literature.py       LiteratureAgent — arxiv + Semantic Scholar tools
 │   ├── fitting.py          FittingAgent — generates + executes lmfit code
-│   └── reviewer.py         ReviewerAgent — theory validity + experiment suggestions
+│   ├── qualitative.py      QualitativeEvaluationAgent — theory-only eval (--no-fitting mode)
+│   ├── reviewer.py         ReviewerAgent — theory validity + experiment suggestions
+│   ├── proposal.py         ProposalAgent — proposes discriminating measurements
+│   ├── tool_builder.py     ToolBuilderAgent — parses complex user-supplied toolkit input
+│   └── followup.py         FollowUpChatAgent — post-report interactive Q&A loop
 ├── phases/
 │   ├── literature_phase.py fan-out → debate → user approval loop
 │   ├── fitting_phase.py    toolkit resolution → fan-out → debate
-│   └── review_phase.py     fan-out → final debate → final report
+│   ├── qualitative_phase.py fan-out qualitative eval → debate (--no-fitting mode)
+│   └── review_phase.py     fan-out reviewers + proposals → final debate → final report
 ├── tools/
 │   ├── arxiv_search.py     sdk.Tool wrapping arxiv.Client
 │   ├── semantic_search.py  sdk.Tool wrapping semanticscholar API
@@ -76,7 +81,8 @@ pytest
 
 # Run CLI (with optional images)
 mtf "Describe your phenomenon here"
-mtf "Describe your phenomenon here" --images plot1.png plot2.png
+mtf "Describe your phenomenon here" --files plot1.png plot2.png
+mtf "Describe your phenomenon here" --no-fitting   # skip numerical fitting; qualitative eval only
 
 # Run browser GUI (opens http://localhost:8501)
 mtf-gui
@@ -87,8 +93,13 @@ python examples/run_experiment.py
 
 ## Architecture Notes
 
-### Image Digestion
-`ImageDigestAgent` runs before all three phases. It encodes each user-supplied image as base64 and calls `anthropic.Anthropic().messages.create()` with a multimodal content block (image + text prompt). The system prompt instructs the model to extract: plot type, axis labels/units/scale, all data series as numerical arrays, key quantitative features (peaks, slopes, error bars, fit parameters), and embedded annotations. Results are stored as `MemoryKind.IMAGE_DATA` entries. All three agent types (`LiteratureAgent`, `FittingAgent`, `ReviewerAgent`) include `IMAGE_DATA` in their `extra_kinds` so extracted data appears in every agent's prompt context. Supported image formats: PNG, JPG, GIF, WebP.
+### Image and Document Digestion
+`ImageDigestAgent` (coordinating) + `FileDigestSubagent` (per-file worker) run before all analysis phases. Both use `messages.create()` directly (not `sdk.query()`) for multimodal content blocks.
+
+- **Images** (PNG, JPG, GIF, WebP): base64-encoded, sent with a system prompt that extracts plot type, axis labels/units/scale, all data series as numerical arrays, key quantitative features (peaks, slopes, error bars, fit parameters), and embedded annotations.
+- **PDFs**: processed in up to two passes when `config.pdf_enhanced_extraction = True` (default). Pass 1 (general digest via `_PDF_SYSTEM_PROMPT`) extracts metadata, equations, experimental methods, all numerical values, and a Figure Inventory. Pass 2 (figure extraction via `_FIGURE_EXTRACTION_PROMPT`) iterates page-by-page and extracts each figure individually as numerical arrays. Both passes are combined into a single sectioned digest.
+
+Results are stored as `MemoryKind.IMAGE_DATA`. If more than one file is supplied, a synthesis call produces a cross-file unified analysis (stored as a separate `IMAGE_DATA` entry). All agent types include `IMAGE_DATA` in `extra_kinds` so extracted data is visible in every prompt context.
 
 ### Shared Memory
 `SharedMemory` is a plain Python object passed by reference to every phase and agent. It is safe under asyncio's single-threaded event loop — no locks needed. `BaseAgent._build_prompt()` prepends a formatted context block before every `sdk.query()` call so agents always see prior debate summaries and user feedback.
@@ -96,8 +107,17 @@ python examples/run_experiment.py
 ### Debate Mechanism
 Each phase: fan-out agents with `asyncio.gather()` → collect reports → `DebateEngine.synthesize()` (one `messages.create()` call, not agentic) → store result as `MemoryKind.DEBATE` → present to user → optional feedback → approval gate → repeat up to `config.max_debate_rounds`.
 
+### Qualitative Evaluation Phase (--no-fitting)
+When `--no-fitting` is passed (or `config.fitting_enabled = False`), the fitting phase is replaced by a parallel fan-out of `QualitativeEvaluationAgent` instances (`phases/qualitative_phase.py`). Each agent evaluates all approved hypotheses against established theory, literature context, and image-extracted data — without numerical fitting. For each hypothesis it produces a verdict (SUPPORTED / PLAUSIBLE / SPECULATIVE / REJECTED), the specific data needed to upgrade to a quantitative fit, and the single most decisive measurement. Results are synthesized via `DebateEngine.synthesize(phase="qualitative")`, stored as `QUALITATIVE_EVAL`, and a `FITTING_SKIPPED` flag is written. `ReviewerAgent` reads both kinds so the review phase adapts its tone.
+
 ### Fitting Code Execution
 `FittingAgent.fit()` asks the model to write Python code, then `run_fitting_code()` runs it via `exec()` in a namespace pre-populated with `numpy`, `lmfit`, `scipy`, and the user's `data` dict. The code must assign its output to `result`. Markdown fences are stripped before execution.
+
+### Proposal Agent
+`ProposalAgent` runs **concurrently with** `ReviewerAgent` instances inside the review phase. It proposes a prioritized list of new measurements and experiments that discriminate between competing hypotheses, specifying observable, expected signal per hypothesis, discriminating power (HIGH / MEDIUM / LOW), equipment requirements, and required sensitivity. Results are synthesized via `DebateEngine.synthesize(phase="proposals")` and appended to the final report as `## Proposed Measurements`.
+
+### Follow-up Chat
+After the final report, `MTFOrchestrator._run_followup_chat()` offers an optional interactive Q&A session. A single `FollowUpChatAgent` is created — no tools, answers purely from the full `SharedMemory` context. It maintains a local `_history` list; each `chat()` call prepends the accumulated `User: … / Assistant: …` dialogue to the task string so the agent has conversational memory across turns despite `sdk.query()` being stateless per call. The loop exits on empty input or `exit`/`quit`.
 
 ### Human Interface
 `HumanInterface` is an ABC. `CLIInterface` wraps `rich` prompts inside `asyncio.to_thread()`. `StreamlitInterface` (`mtf/gui.py`) bridges the async orchestrator to Streamlit's reactive rerun model via two `queue.Queue` objects: `ui_queue` carries `("show"|"ask"|"confirm"|"done"|"error", payload, reply_q)` messages from the orchestrator thread to the Streamlit thread; each interactive message carries its own `reply_q` so the orchestrator blocks on `reply_q.get()` until the user responds. The orchestrator runs in a daemon thread with its own event loop; Streamlit polls `ui_queue` on each rerun. Tests inject `MockInterface` to avoid blocking I/O.
@@ -140,11 +160,18 @@ Install with `pip install -e ".[dev,gpd]"`. Controlled by `config.enable_gpd_mcp
 
 **New `MTFConfig` fields** (all default to safe values so existing runs are unaffected):
 - `auto_detect_domains: bool = True` — enable `_classify_domains()` pre-flight
-- `gpd_domain_detection_max_domains: int = 4` — cap on auto-detected domains
+- `gpd_domain_detection_max_domains: int = 3` — cap on auto-detected domains
 - `literature_plausibility_screen: bool = True` — enable `limiting_case_check` screen after literature debate
 - `auto_reject_physics_failures: bool = False` — if True, CRITICAL-FAIL hypotheses are filtered from the approved list
 - `fitting_convention_check: bool = True` — enable pre-exec `convention_check` in `FittingAgent.fit()`
 - `fitting_max_convention_retries: int = 1` — retries on convention FAIL before proceeding to `exec()`
+- `n_qualitative: int = 2` — parallel `QualitativeEvaluationAgent` instances for `--no-fitting` mode
+- `n_proposal: int = 2` — parallel `ProposalAgent` instances in the review phase
+- `proposal_model: str = "claude-sonnet-4-6"` — model for proposal agents
+- `followup_model: str = "claude-sonnet-4-6"` — model for `FollowUpChatAgent`
+- `pdf_enhanced_extraction: bool = True` — enable two-pass PDF figure extraction
+- `pdf_figure_extraction_max_tokens: int = 8192` — max tokens for the figure-extraction pass
+- `pdf_min_size_kb_for_enhanced: int = 200` — minimum PDF size to trigger the enhanced pass
 
 **When adding new physics capabilities to mtf**: check whether GPD already provides it as an MCP tool before implementing from scratch. The `gpd-mcp-skills` server (`list_skills`, `route_skill`) can discover available GPD capabilities programmatically.
 
