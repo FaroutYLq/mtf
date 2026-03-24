@@ -21,9 +21,8 @@ mtf   # interactive mode — you are prompted for everything
 | `--reviewer-model` | `claude-opus-4-6` | Model for reviewer agents |
 | `--proposal-model` | `claude-opus-4-6` | Model for proposal agents |
 | `--debate-model` | `claude-opus-4-6` | Model for debate synthesis |
-| `--image-digest-model` | `claude-opus-4-6` | Model for image digestion |
-| `--files` | _(none)_ | Input files to digest (images: PNG, JPG, GIF, WebP; documents: PDF) |
 | `--image-digest-model` | `claude-opus-4-6` | Model for image/document digestion |
+| `--files` | _(none)_ | Input files to digest (images: PNG, JPG, GIF, WebP; documents: PDF) |
 | `--physics-domains` | `condensed_matter` | GPD physics domains (space-separated) |
 | `--no-fitting` | _(off)_ | Skip quantitative fitting; run qualitative hypothesis evaluation instead |
 | `--no-gpd` | _(off)_ | Disable GPD MCP physics verification |
