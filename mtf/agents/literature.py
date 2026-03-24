@@ -65,13 +65,14 @@ class LiteratureAgent(BaseAgent):
     async def investigate(self, phenomenon: str) -> str:
         verification_note = ""
         if self._config is None or getattr(self._config, "citation_verification", True):
+            max_cites = getattr(self._config, "citation_verification_max", 10) if self._config else 10
             verification_note = (
-                "\n\nCITATION VERIFICATION (max 10 citations): Before finalising section 4b, "
-                "verify up to 10 of the most important citations by calling the search tool "
-                "again with the exact paper title. Cross-check that returned author names, "
-                "year, and venue match what you plan to report. Flag unverified ones as "
-                "[UNVERIFIED: <reason>]. Skip re-verification for well-known foundational "
-                "papers (e.g., BCS theory, Higgs mechanism)."
+                f"\n\nCITATION VERIFICATION (max {max_cites} citations): Before finalising "
+                f"section 4b, verify up to {max_cites} of the most important citations by "
+                "calling the search tool again with the exact paper title. Cross-check that "
+                "returned author names, year, and venue match what you plan to report. Flag "
+                "unverified ones as [UNVERIFIED: <reason>]. Skip re-verification for "
+                "well-known foundational papers (e.g., BCS theory, Higgs mechanism)."
             )
         task = (
             f"Investigate the following experimental phenomenon and search for "

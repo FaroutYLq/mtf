@@ -106,6 +106,19 @@ def _streamlit_app() -> None:
         n_literature = st.slider("Literature agents", 1, 6, 3)
         n_fitting = st.slider("Fitting agents", 1, 6, 3)
         n_reviewer = st.slider("Reviewer agents", 1, 6, 3)
+        reviewer_verification_passes = st.slider(
+            "Reviewer verification passes",
+            min_value=1,
+            max_value=3,
+            value=1,
+            help="Set >1 to run a structural 'check again' loop after the initial review (vibe-physics lesson: Claude stops at the first error found).",
+        )
+        reviewer_models_input = st.multiselect(
+            "Reviewer models (optional diversity)",
+            ["claude-opus-4-6", "claude-sonnet-4-6", "claude-haiku-4-5-20251001"],
+            default=[],
+            help="If set, reviewer agents cycle through these models. Leave empty to use the single Reviewer model below.",
+        )
         n_proposal = st.slider("Proposal agents", 1, 4, 2)
         max_debate_rounds = st.slider("Max debate rounds", 1, 5, 3)
         skip_fitting = st.checkbox("Skip fitting phase (qualitative evaluation only)", value=False)
@@ -140,6 +153,19 @@ def _streamlit_app() -> None:
         )
         enable_gpd = st.checkbox("Enable GPD physics verification", value=True)
         enhanced_pdf = st.checkbox("Enhanced PDF extraction (2-pass figure analysis)", value=True)
+
+        st.divider()
+        st.subheader("Integrity & verification")
+        citation_verification = st.checkbox(
+            "Citation verification (re-check author/year/venue)",
+            value=True,
+            help="LiteratureAgent re-verifies up to 10 citations via search tools. Unconfirmed ones are flagged [UNVERIFIED].",
+        )
+        fitting_integrity_check = st.checkbox(
+            "Fitting integrity check (detect fabricated results)",
+            value=True,
+            help="Wraps lmfit optimizer in a sentinel to detect whether a real fit was run. Warns if result appears hardcoded.",
+        )
 
     # ------------------------------------------------------------------
     # Pre-run view
@@ -179,6 +205,10 @@ def _streamlit_app() -> None:
                 reviewer_model=reviewer_model,
                 proposal_model=proposal_model,
                 pdf_enhanced_extraction=enhanced_pdf,
+                citation_verification=citation_verification,
+                fitting_result_integrity_check=fitting_integrity_check,
+                reviewer_verification_passes=reviewer_verification_passes,
+                reviewer_models=reviewer_models_input,
             )
 
             ui_queue: "queue.Queue[tuple[str, Any, Any]]" = queue.Queue()
