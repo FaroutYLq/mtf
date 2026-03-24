@@ -102,7 +102,7 @@ python examples/run_experiment.py
 Results are stored as `MemoryKind.IMAGE_DATA`. If more than one file is supplied, a synthesis call produces a cross-file unified analysis (stored as a separate `IMAGE_DATA` entry). All agent types include `IMAGE_DATA` in `extra_kinds` so extracted data is visible in every prompt context.
 
 ### Shared Memory
-`SharedMemory` is a plain Python object passed by reference to every phase and agent. It is safe under asyncio's single-threaded event loop — no locks needed. `BaseAgent._build_prompt()` prepends a formatted context block before every `sdk.query()` call so agents always see prior debate summaries and user feedback.
+`SharedMemory` is a plain Python object passed by reference to every phase and agent. It is safe under asyncio's single-threaded event loop — no locks needed. `BaseAgent._build_prompt()` prepends a formatted context block before every `sdk.query()` call so agents always see prior debate summaries and user feedback. `_format_index(entries)` is a private helper that produces a compact one-line-per-entry table of contents using `--- INDEX ---` / `--- FULL ENTRIES BELOW ---` delimiters and 80-char previews. `format_context()` calls `_format_index()` automatically when more than 3 entries are present, giving agents a navigable structure. The public `format_index()` is a thin wrapper that calls `_format_index(self._entries)`. `MemoryKind.PHENOMENON` is written once at orchestrator start (guarded against double-write on re-entrant calls) so every agent always sees the original question.
 
 ### Debate Mechanism
 Each phase: fan-out agents with `asyncio.gather()` → collect reports → `DebateEngine.synthesize()` (one `messages.create()` call, not agentic) → store result as `MemoryKind.DEBATE` → present to user → optional feedback → approval gate → repeat up to `config.max_debate_rounds`.
@@ -183,3 +183,5 @@ Install with `pip install -e ".[dev,gpd]"`. Controlled by `config.enable_gpd_mcp
 - `ImageDigestAgent` uses `messages.create()` (not sdk.query()) — keep it that way; it needs multimodal content blocks that the agent-sdk does not expose.
 - `DebateEngine.synthesize()` is a plain API call, not an agent loop — keep it that way for speed.
 - `run_fitting_code()` uses `exec()` intentionally; do not replace with subprocess or a sandbox service without user approval.
+- `BaseAgent._build_prompt()` always appends a honesty-enforcement reminder (unconditional, not configurable) and, when CONVENTIONS entries exist, a convention-lock reminder. Never remove these.
+- `MemoryKind.PHENOMENON` is written at most once per `MTFOrchestrator` instance; `run()` guards against double-write with a `filter()` check.

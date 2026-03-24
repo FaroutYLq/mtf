@@ -9,6 +9,7 @@ class MTFConfig:
 
     # Agent counts
     n_literature: int = 2
+    citation_verification: bool = True  # require LiteratureAgent to re-verify each citation
     n_fitting: int = 2
     n_qualitative: int = 2
     n_reviewer: int = 2
@@ -58,3 +59,4 @@ class MTFConfig:
     pdf_enhanced_extraction: bool = True
     pdf_figure_extraction_max_tokens: int = 8192
     pdf_min_size_kb_for_enhanced: int = 200
+
