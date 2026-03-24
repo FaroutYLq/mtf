@@ -84,6 +84,7 @@ class ReviewerAgent(BaseAgent):
                 MemoryKind.IMAGE_DATA,
                 MemoryKind.CONVENTIONS,
                 MemoryKind.PHYSICS_VERDICT,
+                MemoryKind.INTEGRITY_WARNING,
                 MemoryKind.QUALITATIVE_EVAL,
                 MemoryKind.FITTING_SKIPPED,
             ),

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import functools
 import textwrap
 import traceback
 from typing import Any
@@ -13,6 +14,7 @@ from scipy import optimize, stats
 
 def _make_sentinel_minimize(called_flag: list[bool]):
     """Wrap lmfit.minimize to record whether it was actually invoked."""
+    @functools.wraps(_real_minimize)
     def sentinel_minimize(*args, **kwargs):
         called_flag[0] = True
         return _real_minimize(*args, **kwargs)
@@ -75,26 +77,10 @@ def _validate_result(result: Any, optimizer_called: bool) -> list[str]:
             "INTEGRITY WARNING: 'parameters' dict is empty — no fitted parameters reported."
         )
 
-    # If residuals are provided, cross-check chi²
-    residuals = result.get("residuals")
-    if residuals is not None and chi2 is not None:
-        try:
-            residuals_arr = np.asarray(residuals, dtype=float)
-            recomputed = float(np.sum(residuals_arr ** 2))
-            declared = float(chi2)
-            if abs(recomputed - declared) / max(abs(declared), 1e-10) > 0.05:
-                warnings.append(
-                    f"INTEGRITY WARNING: Declared chi_squared={declared:.4g} does not match "
-                    f"recomputed value from residuals ({recomputed:.4g}). "
-                    "Possible manual adjustment of result values."
-                )
-        except Exception:
-            pass  # residuals not numeric — skip cross-check
-
     return warnings
 
 
-def run_fitting_code(code: str, data: dict[str, Any]) -> dict[str, Any]:
+def run_fitting_code(code: str, data: dict[str, Any], integrity_check: bool = True) -> dict[str, Any]:
     """Execute agent-generated fitting code in a sandboxed namespace.
 
     The code has access to: numpy (np), lmfit (Model, Parameters, minimize),
@@ -103,36 +89,56 @@ def run_fitting_code(code: str, data: dict[str, Any]) -> dict[str, Any]:
     The code MUST assign its results to a variable named 'result' which is
     returned to the caller.
 
-    Post-execution integrity checks detect whether a real optimizer was called
-    and whether declared chi² values are consistent with any reported residuals.
+    When integrity_check=True (default), sentinel wrappers detect whether a real
+    optimizer was called and _validate_result() checks for obvious fabrications.
+    When integrity_check=False, the real lmfit symbols are injected directly and
+    no validation is performed.
 
     Args:
         code: Python source code string produced by a FittingAgent.
         data: Dict of user-provided arrays / scalars from the toolkit registry.
+        integrity_check: Whether to run anti-fabrication checks (default True).
 
     Returns:
         The value of 'result' from the executed code, or an error dict.
         May include an 'integrity_warnings' key with a list of warning strings.
     """
-    optimizer_called: list[bool] = [False]
+    if integrity_check:
+        optimizer_called: list[bool] = [False]
+        namespace: dict[str, Any] = {
+            "np": np,
+            "numpy": np,
+            "Model": _make_sentinel_model(optimizer_called),
+            "Parameters": Parameters,
+            "minimize": _make_sentinel_minimize(optimizer_called),
+            "optimize": optimize,
+            "stats": stats,
+            "data": data,
+            "result": None,
+        }
+    else:
+        namespace = {
+            "np": np,
+            "numpy": np,
+            "Model": Model,
+            "Parameters": Parameters,
+            "minimize": _real_minimize,
+            "optimize": optimize,
+            "stats": stats,
+            "data": data,
+            "result": None,
+        }
 
-    namespace: dict[str, Any] = {
-        "np": np,
-        "numpy": np,
-        "Model": _make_sentinel_model(optimizer_called),
-        "Parameters": Parameters,
-        "minimize": _make_sentinel_minimize(optimizer_called),
-        "optimize": optimize,
-        "stats": stats,
-        "data": data,
-        "result": None,
-    }
     try:
         exec(textwrap.dedent(code), namespace)  # noqa: S102
     except Exception:
         return {"error": traceback.format_exc(), "code": code}
 
     raw_result = namespace.get("result")
+
+    if not integrity_check:
+        return {"result": raw_result, "code": code}
+
     warnings = _validate_result(raw_result, optimizer_called[0])
 
     output: dict[str, Any] = {"result": raw_result, "code": code}

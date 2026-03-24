@@ -172,13 +172,14 @@ class FittingAgent(BaseAgent):
                 else:
                     break  # No violation — proceed to exec
 
-        fit_output = run_fitting_code(code, self._toolkit.all_data())
+        enabled = self._config.fitting_result_integrity_check if self._config is not None else True
+        fit_output = run_fitting_code(code, self._toolkit.all_data(), integrity_check=enabled)
 
         # Surface integrity warnings in memory so reviewers see them
         if self._config is not None and fit_output.get("integrity_warnings"):
             for w in fit_output["integrity_warnings"]:
                 self._memory.add(
-                    MemoryKind.PHYSICS_VERDICT,
+                    MemoryKind.INTEGRITY_WARNING,
                     w,
                     source="fitting_integrity_check",
                     hypothesis=hypothesis[:200],
