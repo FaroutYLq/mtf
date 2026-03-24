@@ -14,6 +14,8 @@ class MTFConfig:
     n_fitting: int = 2
     n_qualitative: int = 2
     n_reviewer: int = 2
+    reviewer_verification_passes: int = 1  # >1 enables structural "check again" loop
+    reviewer_models: list[str] = field(default_factory=list)  # cycles models for diversity
 
     # Model selection
     literature_model: str = "claude-haiku-4-5-20251001"
@@ -53,9 +55,6 @@ class MTFConfig:
     fitting_result_integrity_check: bool = True  # detect hardcoded/fabricated fit results
 
     # Proposal agent
-    reviewer_verification_passes: int = 1  # >1 enables structural "check again" loop
-    reviewer_models: list[str] = field(default_factory=list)  # cycles models for diversity
-
     n_proposal: int = 2
     proposal_model: str = "claude-sonnet-4-6"
     followup_model: str = "claude-sonnet-4-6"

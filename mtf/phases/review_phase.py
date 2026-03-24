@@ -85,7 +85,7 @@ async def run_review_phase(
     )
 
     def _reviewer_model(i: int) -> str:
-        models = getattr(config, "reviewer_models", [])
+        models = config.reviewer_models
         if models:
             return models[i % len(models)]
         return config.reviewer_model
@@ -118,7 +118,7 @@ async def run_review_phase(
     proposal_reports = list(all_results[config.n_reviewer:])
 
     # Second-pass verification loop (vibe-physics: "repeat Check again until nothing new")
-    if getattr(config, "reviewer_verification_passes", 1) > 1:
+    if config.reviewer_verification_passes > 1:
         await interface.show(
             f"Running {config.reviewer_verification_passes - 1} additional verification pass(es)...",
             title="MTF: Review",
@@ -130,7 +130,7 @@ async def run_review_phase(
                     f"Your previous review:\n{report}\n\n"
                     f"Re-read the above review from the beginning. Did you miss anything? "
                     f"Check every claim, equation, parameter range, and citation again. "
-                    f"Append additional findings under 'Additional concerns (pass {pass_num + 2}):'. "
+                    f"Append additional findings under 'Additional concerns:'. "
                     f"If you found nothing new, state that explicitly."
                 )
                 for report in reviewer_reports
