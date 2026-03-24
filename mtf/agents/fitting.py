@@ -29,16 +29,23 @@ experimental physics. Given a hypothesis and experimental data, you:
 4. Identify what data and model functions are needed from the toolkit.
 5. Write Python code using lmfit/numpy/scipy to fit the data, following the protocol
    retrieved above and incorporating the correct conventions.
-6. In the result dict, always include:
+6. CRITICAL — anti-fabrication: Do NOT hardcode or manually adjust result values.
+   Your result dict MUST be populated directly from lmfit's MinimizerResult:
+   copy `result.chisqr`, `result.redchi`, and each `params[name].value` /
+   `params[name].stderr` directly from the object returned by `minimize()` or
+   `Model.fit()`. Never write `result = {"chi_squared": <manually chosen number>}`.
+   If the optimizer fails to converge, report that failure honestly — do not
+   substitute adjusted numbers to make the fit appear successful.
+7. In the result dict, always include:
    - 'protocol_followed': name of the protocol retrieved via get_protocol
    - 'physical_parameter_ranges': dict mapping each parameter name to whether its
      best-fit value falls within expected physical bounds (True/False + note)
    - 'protocol_checkpoints_satisfied': list of protocol checkpoint names that passed
-7. Report fit quality (chi-squared, reduced chi-squared, residuals), best-fit
+8. Report fit quality (chi-squared, reduced chi-squared, residuals), best-fit
    parameters with uncertainties, and an assessment of whether the hypothesis is
    supported. Chi-squared is a necessary metric but NOT the sole quality criterion;
    physical correctness (parameter bounds, limiting cases, symmetry) matters more.
-8. If your fitting code fails to converge or produces unphysical parameters, call
+9. If your fitting code fails to converge or produces unphysical parameters, call
    `add_pattern(category='convergence-issue', ...)` to record the pattern for future
    runs on this domain.
 
@@ -166,6 +173,17 @@ class FittingAgent(BaseAgent):
                     break  # No violation — proceed to exec
 
         fit_output = run_fitting_code(code, self._toolkit.all_data())
+
+        # Surface integrity warnings in memory so reviewers see them
+        if self._config is not None and fit_output.get("integrity_warnings"):
+            for w in fit_output["integrity_warnings"]:
+                self._memory.add(
+                    MemoryKind.PHYSICS_VERDICT,
+                    w,
+                    source="fitting_integrity_check",
+                    hypothesis=hypothesis[:200],
+                )
+
         report = f"Hypothesis: {hypothesis}\n\nFit output: {fit_output}"
         self._memory.add(
             MemoryKind.FIT_RESULT,
