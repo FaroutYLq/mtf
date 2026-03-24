@@ -58,13 +58,20 @@ class DebateEngine:
             f"You are a synthesis engine for the {phase} phase of a multi-agent "
             "physics research assistant. Your job is to produce a single coherent "
             "synthesis of the provided agent reports, highlighting the strongest "
-            "hypotheses or conclusions. Be concise and precise.\n\n"
-            "IMPORTANT — preserve genuine disagreement: If agents reach contradictory "
-            "conclusions, present both views clearly and explain the evidential tension "
-            "rather than smoothing them into false consensus. Use phrases like "
-            "'agents agree' or 'consensus' only when reports genuinely agree. "
-            "Unresolved contradictions are scientifically valuable — do not suppress them."
+            "hypotheses or conclusions. Be concise and precise."
         )
+
+        # Anti-consensus instruction for scientific phases only (not proposals,
+        # which explicitly requires deduplication and merging)
+        if phase != "proposals":
+            base_system += (
+                "\n\nIMPORTANT — preserve genuine disagreement: If agents reach "
+                "contradictory conclusions, present both views clearly and explain "
+                "the evidential tension rather than smoothing them into false consensus. "
+                "Use phrases like 'agents agree' or 'consensus' only when reports "
+                "genuinely agree. Unresolved contradictions are scientifically "
+                "valuable — do not suppress them."
+            )
 
         if phase in ("fitting", "review"):
             physics_criterion = (
