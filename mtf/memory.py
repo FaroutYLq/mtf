@@ -25,6 +25,7 @@ class MemoryKind(str, Enum):
     QUALITATIVE_EVAL = "qualitative_eval"  # qualitative hypothesis evaluation (used when fitting is skipped)
     FITTING_SKIPPED = "fitting_skipped"    # marker written when --no-fitting is active
     PROPOSALS = "proposals"
+    PHENOMENON = "phenomenon"      # original user phenomenon anchored at run start
 
 
 @dataclass
@@ -51,11 +52,35 @@ class SharedMemory:
             return list(self._entries)
         return [e for e in self._entries if e.kind in kinds]
 
+    def format_index(self) -> str:
+        """Return a compact one-line-per-entry table of contents for the context."""
+        entries = self._entries
+        if not entries:
+            return ""
+        lines = ["=== CONTEXT INDEX ==="]
+        for i, e in enumerate(entries):
+            preview = e.content[:100].replace("\n", " ")
+            agent = e.metadata.get("agent_id", e.metadata.get("source", ""))
+            tag = f"{e.kind.value.upper()}" + (f"/{agent}" if agent else "")
+            lines.append(f"[{i+1}] [{tag}] {preview}...")
+        lines.append("=== END INDEX ===")
+        return "\n".join(lines)
+
     def format_context(self, *kinds: MemoryKind) -> str:
         entries = self.filter(*kinds) if kinds else self._entries
         if not entries:
             return ""
         lines = ["=== SHARED CONTEXT ==="]
+        # Prepend index for navigability when context is large
+        if len(entries) > 3:
+            index_lines = ["--- INDEX ---"]
+            for i, e in enumerate(entries):
+                preview = e.content[:80].replace("\n", " ")
+                agent = e.metadata.get("agent_id", e.metadata.get("source", ""))
+                tag = e.kind.value.upper() + (f"/{agent}" if agent else "")
+                index_lines.append(f"[{i+1}] [{tag}] {preview}...")
+            index_lines.append("--- FULL ENTRIES BELOW ---")
+            lines.extend(index_lines)
         for e in entries:
             lines.append(f"[{e.kind.value.upper()}] {e.content}")
         lines.append("=== END CONTEXT ===")
