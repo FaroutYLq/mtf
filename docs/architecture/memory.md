@@ -41,6 +41,8 @@ class MemoryEntry:
 | `TOOLKIT_DIGEST` | `ToolBuilderAgent` | Summary of data and model items parsed from complex user-supplied input by the tool-builder agent. |
 | `QUALITATIVE_EVAL` | `QualitativeEvaluationAgent` | Qualitative hypothesis evaluation report produced when `--no-fitting` is used. Contains per-hypothesis SUPPORTED/PLAUSIBLE/SPECULATIVE/REJECTED verdicts based on theory and image data, without numerical fitting. Read by `ReviewerAgent`. |
 | `FITTING_SKIPPED` | Qualitative phase | Flag entry written when the fitting phase is skipped. Content: `"Fitting phase was skipped (--no-fitting). Qualitative evaluation substituted."` Read by `ReviewerAgent` for context. |
+| `PHENOMENON` | `MTFOrchestrator.run()` | Original user phenomenon text, written once at run start before any phase. Guards against double-write. Never overwritten. |
+| `INTEGRITY_WARNING` | `FittingAgent.fit()` | Fabrication/integrity warnings from post-exec checks in `run_fitting_code()`: optimizer not called, chi² negative, or parameters empty. Read by `ReviewerAgent`. |
 
 ---
 
@@ -56,11 +58,20 @@ to the agent's prompt.
 
 ```
 === SHARED CONTEXT ===
+--- INDEX ---
+[1] [USER_FEEDBACK] Increase the temperature range in your search...
+[2] [IMAGE_DATA] ## Image Type\nLine graph …
+[3] [CONVENTIONS] {"subfield": "condensed_matter", ...
+[4] [PHENOMENON] We observe a sharp resistance drop...
+--- FULL ENTRIES BELOW ---
 [USER_FEEDBACK] Increase the temperature range in your search.
 [IMAGE_DATA] ## Image Type\nLine graph …\n## Axes and Units …
 [CONVENTIONS] {"subfield": "condensed_matter", "metric_signature": "+---", …}
+[PHENOMENON] We observe a sharp resistance drop to zero at 92 K…
 === END CONTEXT ===
 ```
+
+The index is prepended automatically when more than 3 entries are present, giving agents a navigable table of contents. `_format_index(entries)` is the private helper; `format_index()` is its public thin wrapper.
 
 `BaseAgent._build_prompt()` prepends this block:
 
@@ -72,6 +83,8 @@ to the agent's prompt.
 Task: Investigate the following experimental phenomenon …
 ```
 
+After the context block and task text, `_build_prompt()` always appends a honesty-enforcement reminder (`_HONESTY_REMINDER`). When `CONVENTIONS` entries are present, a convention-lock reminder (`_CONVENTION_REMINDER`) is also appended.
+
 ### Which kinds each agent reads
 
 | Agent | `extra_kinds` passed to `_query()` |
@@ -80,12 +93,14 @@ Task: Investigate the following experimental phenomenon …
 | `FittingAgent.identify_needed_toolkit_items()` | `LITERATURE`, `DEBATE`, `IMAGE_DATA`, `CONVENTIONS`, `FITTING_WARNINGS`, `DOMAIN_PATTERNS` |
 | `FittingAgent.fit()` | `LITERATURE`, `DEBATE`, `USER_FEEDBACK`, `IMAGE_DATA`, `CONVENTIONS`, `FITTING_WARNINGS`, `DOMAIN_PATTERNS` |
 | `QualitativeEvaluationAgent.evaluate()` | `IMAGE_DATA`, `LITERATURE`, `DEBATE`, `USER_FEEDBACK`, `CONVENTIONS`, `PHYSICS_VERDICT` |
-| `ReviewerAgent.review()` | `LITERATURE`, `DEBATE`, `FIT_RESULT`, `USER_FEEDBACK`, `IMAGE_DATA`, `CONVENTIONS`, `PHYSICS_VERDICT`, `QUALITATIVE_EVAL`, `FITTING_SKIPPED` |
+| `ReviewerAgent.review()` | `LITERATURE`, `DEBATE`, `FIT_RESULT`, `USER_FEEDBACK`, `IMAGE_DATA`, `CONVENTIONS`, `PHYSICS_VERDICT`, `QUALITATIVE_EVAL`, `FITTING_SKIPPED`, `INTEGRITY_WARNING` |
 | `ProposalAgent.propose()` | `IMAGE_DATA`, `LITERATURE`, `DEBATE`, `HYPOTHESIS`, `FIT_RESULT`, `USER_FEEDBACK`, `CONVENTIONS`, `PHYSICS_VERDICT` |
 
 `DebateEngine.synthesize()` always calls `memory.format_context()` with no arguments,
 receiving all entries regardless of kind, plus it explicitly appends `CONVENTIONS` and
 `PHYSICS_VERDICT` entries to the user content block.
+
+`MemoryKind.PHENOMENON` is always present in memory after orchestrator start but is not explicitly requested via `extra_kinds` — it appears in every prompt via the full-context index.
 
 ### Why IMAGE_DATA is included in every agent's context
 
@@ -101,28 +116,30 @@ to every agent that performs analysis — no explicit passing of data is require
 Entries accumulate in chronological order within a single pipeline run:
 
 ```
-[IMAGE_DATA]       per file, then cross-file synthesis  (phase 0)
-[CONVENTIONS]      per domain                           (start of phase 1)
-[LITERATURE]       N entries, one per lit agent         (phase 1 round 1 …)
-[USER_FEEDBACK]    0 or more, one per rejection         (phase 1)
-[DEBATE]           one per round (phase="literature")   (phase 1)
-[HYPOTHESIS]       one per approved hypothesis line     (phase 1 approval)
+[PHENOMENON]       one entry at run start                  (orchestrator init)
+[IMAGE_DATA]       per file, then cross-file synthesis     (phase 0)
+[CONVENTIONS]      per domain                              (start of phase 1)
+[LITERATURE]       N entries, one per lit agent            (phase 1 round 1 …)
+[USER_FEEDBACK]    0 or more, one per rejection            (phase 1)
+[DEBATE]           one per round (phase="literature")      (phase 1)
+[HYPOTHESIS]       one per approved hypothesis line        (phase 1 approval)
 # Fitting path (default):
-[FITTING_WARNINGS] 0 or more, per domain × hypothesis  (phase 2 pre-dispatch)
-[PHYSICS_VERDICT]  0 or more (convention check pre-exec)(phase 2 fit)
-[FIT_RESULT]       M × N_hypotheses entries             (phase 2)
-[PHYSICS_VERDICT]  0 or more (checks 5.1 + 5.3)        (phase 2 post-fit)
-[DEBATE]           one (phase="fitting")                (phase 2)
-[PHYSICS_VERDICT]  0 or more (dimensional postscript)   (phase 2 debate)
+[FITTING_WARNINGS] 0 or more, per domain × hypothesis     (phase 2 pre-dispatch)
+[PHYSICS_VERDICT]  0 or more (convention check pre-exec)  (phase 2 fit)
+[FIT_RESULT]       M × N_hypotheses entries               (phase 2)
+[INTEGRITY_WARNING] 0 or more (if fabrication detected)   (phase 2 fit)
+[PHYSICS_VERDICT]  0 or more (checks 5.1 + 5.3)          (phase 2 post-fit)
+[DEBATE]           one (phase="fitting")                  (phase 2)
+[PHYSICS_VERDICT]  0 or more (dimensional postscript)     (phase 2 debate)
 # Qualitative path (--no-fitting):
-[QUALITATIVE_EVAL] N entries, one per eval agent        (phase 2)
-[FITTING_SKIPPED]  one flag entry                       (phase 2)
-[DEBATE]           one (phase="qualitative")            (phase 2)
-[REVIEW]           K entries, one per reviewer          (phase 3)
-[PHYSICS_VERDICT]  0 or more (run_check per hypothesis) (phase 3)
-[DEBATE]           one (phase="review")                 (phase 3)
-[PHYSICS_VERDICT]  0 or more (dimensional postscript)   (phase 3 debate)
-[PROPOSALS]        one (proposal synthesis)             (phase 3)
+[QUALITATIVE_EVAL] N entries, one per eval agent          (phase 2)
+[FITTING_SKIPPED]  one flag entry                         (phase 2)
+[DEBATE]           one (phase="qualitative")              (phase 2)
+[REVIEW]           K entries, one per reviewer            (phase 3)
+[PHYSICS_VERDICT]  0 or more (run_check per hypothesis)  (phase 3)
+[DEBATE]           one (phase="review")                   (phase 3)
+[PHYSICS_VERDICT]  0 or more (dimensional postscript)    (phase 3 debate)
+[PROPOSALS]        one (proposal synthesis)              (phase 3)
 ```
 
 ---
