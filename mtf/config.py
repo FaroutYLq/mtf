@@ -10,6 +10,7 @@ class MTFConfig:
     # Agent counts
     n_literature: int = 2
     citation_verification: bool = True  # require LiteratureAgent to re-verify each citation
+    citation_verification_max: int = 10  # max citations to re-verify per agent
     n_fitting: int = 2
     n_qualitative: int = 2
     n_reviewer: int = 2
