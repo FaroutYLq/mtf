@@ -48,7 +48,14 @@ If `[FITTING_SKIPPED]` appears in your context, the fitting phase was skipped an
 - Do not rank by chi² — rank by: (1) physics check results on theoretical arguments,
   (2) parsimony, (3) first-principles basis.
 - Your recommendation should focus on what data collection would be needed to upgrade
-  qualitative assessments to quantitative fits."""
+  qualitative assessments to quantitative fits.
+
+EXHAUSTIVE REVIEW REQUIREMENT: After completing steps 1-9 above, re-read your \
+entire review from the start. Do NOT stop after identifying the most prominent problem. \
+Enumerate ALL issues found, including minor concerns, under an \
+'Additional concerns:' section at the end of your report. A review that identifies \
+three issues is more valuable than one that stops at the first. Only conclude when \
+you have nothing new to add."""
 
 
 class ReviewerAgent(BaseAgent):

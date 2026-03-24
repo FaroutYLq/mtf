@@ -84,10 +84,16 @@ async def run_review_phase(
         title="MTF: Review",
     )
 
+    def _reviewer_model(i: int) -> str:
+        models = config.reviewer_models
+        if models:
+            return models[i % len(models)]
+        return config.reviewer_model
+
     agents = [
         ReviewerAgent(
             agent_id=f"rev-{i}",
-            model=config.reviewer_model,
+            model=_reviewer_model(i),
             memory=memory,
             gpd_tools=gpd_tools,
         )
@@ -110,6 +116,45 @@ async def run_review_phase(
     )
     reviewer_reports = list(all_results[:config.n_reviewer])
     proposal_reports = list(all_results[config.n_reviewer:])
+
+    # Second-pass verification loop (vibe-physics: "repeat Check again until nothing new")
+    if config.reviewer_verification_passes > 1:
+        await interface.show(
+            f"Running {config.reviewer_verification_passes - 1} additional verification pass(es)...",
+            title="MTF: Review",
+        )
+        for pass_num in range(config.reviewer_verification_passes - 1):
+            second_pass_tasks = [
+                (
+                    f"Original phenomenon:\n{phenomenon}\n\n"
+                    f"Your previous review:\n{report}\n\n"
+                    f"Re-read the above review from the beginning. Did you miss anything? "
+                    f"Check every claim, equation, parameter range, and citation again. "
+                    f"Append additional findings under 'Additional concerns:'. "
+                    f"If you found nothing new, state that explicitly."
+                )
+                for report in reviewer_reports
+            ]
+            second_pass_reports = await asyncio.gather(
+                *(
+                    agent._query(
+                        task,
+                        extra_kinds=(
+                            MemoryKind.LITERATURE,
+                            MemoryKind.DEBATE,
+                            MemoryKind.FIT_RESULT,
+                            MemoryKind.USER_FEEDBACK,
+                            MemoryKind.IMAGE_DATA,
+                            MemoryKind.CONVENTIONS,
+                            MemoryKind.PHYSICS_VERDICT,
+                            MemoryKind.QUALITATIVE_EVAL,
+                            MemoryKind.FITTING_SKIPPED,
+                        ),
+                    )
+                    for agent, task in zip(agents, second_pass_tasks)
+                )
+            )
+            reviewer_reports = list(second_pass_reports)
 
     review_synthesis = await debate_engine.synthesize(
         reviewer_reports,
