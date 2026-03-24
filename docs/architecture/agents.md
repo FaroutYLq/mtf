@@ -25,6 +25,10 @@ This block is prepended to the `task` string before being sent to `sdk.query()`.
 concrete agent specifies which `MemoryKind` values it needs via `extra_kinds` — agents
 only see the memory entries relevant to their role.
 
+After the context block and task string, `_build_prompt()` unconditionally appends two safety suffixes:
+- **`_HONESTY_REMINDER`** — instructs the agent not to use shortcut phrases like 'this becomes' or 'for consistency' to skip steps, and not to claim verification unless explicitly performed.
+- **`_CONVENTION_REMINDER`** — appended only when `CONVENTIONS` entries are present in memory; reminds the agent that physics conventions are locked for this run and must not revert to textbook defaults.
+
 **`_query(task, extra_kinds)`**
 
 Builds the prompt, then iterates over `sdk.query()` chunks collecting text.  The agentic
@@ -110,10 +114,12 @@ image/document blocks can be placed in the content list alongside text blocks.
 | **Phase** | ① Literature |
 | **API** | `sdk.query()` (agentic) |
 | **Tools** | arxiv search, Semantic Scholar, GPD: `check_error_classes`, `route_protocol`, `lookup_pattern`, `add_pattern` |
-| **Memory context read** | `USER_FEEDBACK`, `IMAGE_DATA`, `CONVENTIONS`, `DOMAIN_PATTERNS` |
+| **Memory context read** | `PHENOMENON`, `USER_FEEDBACK`, `IMAGE_DATA`, `CONVENTIONS`, `DOMAIN_PATTERNS` |
 | **Memory written** | `LITERATURE` |
 
 N instances run concurrently in each debate round (`asyncio.gather()`).
+
+Accepts an optional `config: MTFConfig` parameter. When `config.citation_verification = True` (default), the task prompt includes a citation re-verification step capped at `config.citation_verification_max` (default 10) citations.
 
 **Agentic loop (inside `sdk.query()`):**
 
@@ -126,6 +132,7 @@ The system prompt instructs a fixed tool-call order:
    physics error classes — error-prone approaches are flagged in the report.
 4. If systematic errors are found in a class of papers (convention-pitfalls, sign errors,
    missing factors), call `add_pattern` to record them in the cross-session pattern store.
+5. Re-verify up to `config.citation_verification_max` of the most important citations by calling the search tool again with the exact paper title to cross-check author names, year, and venue. Unverified citations are flagged `[UNVERIFIED: <reason>]`.
 
 The agent also receives `DOMAIN_PATTERNS` in context — pre-fetched pitfall patterns for the
 physics domain, written to memory before the fan-out.
@@ -153,7 +160,7 @@ The report is stored as `LITERATURE` and returned to the phase for debate.
 | **API** | `sdk.query()` (agentic) |
 | **Tools** | GPD: `route_protocol`, `get_protocol`, `subfield_defaults`, `convention_check`, `add_pattern` |
 | **Memory context read** | `LITERATURE`, `DEBATE`, `USER_FEEDBACK`, `IMAGE_DATA`, `CONVENTIONS`, `FITTING_WARNINGS`, `DOMAIN_PATTERNS` |
-| **Memory written** | `FIT_RESULT` |
+| **Memory written** | `FIT_RESULT`, `INTEGRITY_WARNING` (when integrity issues detected) |
 
 M instances run per hypothesis, all rate-limited by `asyncio.Semaphore`.
 
@@ -175,6 +182,7 @@ The system prompt instructs:
 4. Write lmfit Python code following the protocol's checkpoints.
 5. If the fit fails to converge or produces unphysical parameters, call `add_pattern`
    to record the convergence issue in the cross-session pattern store.
+6. **Anti-fabrication rule:** the result dict must be populated directly from the lmfit `MinimizerResult` — hardcoding result values is explicitly prohibited.
 
 The agent receives `FITTING_WARNINGS` and `DOMAIN_PATTERNS` in context — pre-fetched
 pitfall warnings for the specific hypothesis/domain combination, written before the fan-out.
@@ -189,6 +197,8 @@ code before `exec()`. If the check returns `FAIL`, the violation is written to
 The generated code is stripped of markdown fences, then executed by `run_fitting_code()`
 via `exec()` in a namespace seeded with `numpy`, `lmfit`, `scipy`, and the user's `data`
 dict from `ToolkitRegistry`.  The code must assign its output to a variable named `result`.
+
+**Post-exec integrity checks** (when `config.fitting_result_integrity_check = True`, default): `run_fitting_code()` wraps `lmfit.minimize` and `Model` in sentinels to detect whether a real optimizer call was made. After `exec()`, `_validate_result()` checks: optimizer was called (warns if not — possible hardcoded result), chi² ≥ 0 (negative is physically impossible), parameters dict non-empty. Any warnings are stored as `MemoryKind.INTEGRITY_WARNING` with `source='fitting_integrity_check'`.
 
 The `result` dict must contain:
 
@@ -237,7 +247,7 @@ tone accordingly.
 | **Phase** | ③ Review |
 | **API** | `sdk.query()` (agentic) |
 | **Tools** | GPD: `get_checklist`, `run_check`, `dimensional_check`, `limiting_case_check`, `check_error_classes`, `get_detection_strategy`, `lookup_pattern`, `add_pattern` |
-| **Memory context read** | `LITERATURE`, `DEBATE`, `FIT_RESULT`, `USER_FEEDBACK`, `IMAGE_DATA`, `CONVENTIONS`, `PHYSICS_VERDICT`, `QUALITATIVE_EVAL`, `FITTING_SKIPPED` |
+| **Memory context read** | `LITERATURE`, `DEBATE`, `FIT_RESULT`, `USER_FEEDBACK`, `IMAGE_DATA`, `CONVENTIONS`, `PHYSICS_VERDICT`, `QUALITATIVE_EVAL`, `FITTING_SKIPPED`, `INTEGRITY_WARNING` |
 | **Memory written** | `REVIEW` |
 
 K instances run concurrently.  `ReviewerAgent` reads the widest memory context of any
@@ -273,6 +283,8 @@ basis, (4) chi² last — mirroring the ranking criterion in the debate synthesi
 
 The review report is stored as `REVIEW`.
 
+**Exhaustive review requirement**: The system prompt instructs the agent to re-read its entire review after completing the main steps and enumerate *all* issues found — not just the most prominent one — under an 'Additional concerns:' section.
+
 ---
 
 ## ProposalAgent
@@ -306,6 +318,8 @@ context already contains all analysis results.
 call prepends the accumulated `User: … / Assistant: …` dialogue to the task string before
 calling `_query()`, giving the agent conversational memory across turns despite `sdk.query()`
 being stateless per call.
+
+**Pressure resistance**: The system prompt includes an explicit instruction that changing a position requires new evidence or a logical argument — user insistence alone is not sufficient. The agent is directed to cite specific results, fit parameters, or reviewer verdicts when defending a conclusion, and is permitted to disagree with the user.
 
 **Loop behaviour:** managed by the orchestrator — questions are read via `interface.ask()`,
 responses are displayed via `interface.show()`, and the loop exits on empty input or

@@ -310,8 +310,8 @@ store user feedback and repeat.
 `K` `ReviewerAgent` instances run concurrently via `asyncio.gather()`.  Each agent:
 
 1. Prepends memory context (`LITERATURE`, `DEBATE`, `FIT_RESULT`, `USER_FEEDBACK`,
-   `IMAGE_DATA`, `CONVENTIONS`, `PHYSICS_VERDICT`) — the broadest context window of
-   any agent type.
+   `IMAGE_DATA`, `CONVENTIONS`, `PHYSICS_VERDICT`, `INTEGRITY_WARNING`) — the broadest
+   context window of any agent type.
 2. Calls `sdk.query()` with all 8 GPD tools available.  The system prompt instructs
    the agent to:
    - Call `check_error_classes` first (top-15 error classes for the domain).
@@ -325,6 +325,10 @@ store user feedback and repeat.
 3. Produces a verdict for each hypothesis: **SUPPORTED / PLAUSIBLE / SPECULATIVE / REJECTED**,
    citing specific check IDs (e.g. `"REJECTED — check 5.1 FAIL: units inconsistent"`).
 4. Stores the verdict report as `MemoryKind.REVIEW`.
+
+**Second-pass verification loop:** When `config.reviewer_verification_passes > 1`, after the initial fan-out each reviewer is queried a second time with its own first-pass report and asked: 'Did you miss anything? Check every claim, equation, parameter range, and citation again.' The updated reports replace the first-pass outputs before synthesis. Default is `1` (single pass, same behaviour as before).
+
+**Multi-model diversity:** When `config.reviewer_models` is non-empty (e.g. `['claude-opus-4-6', 'claude-sonnet-4-6']`), reviewer agent instances cycle through the list. This provides adversarial diversity — different models tend to catch different errors.
 
 `DebateEngine.synthesize(phase="review")` collects all K reports, applies the same
 physics-first ranking criterion as the fitting phase, and returns the final report string.
@@ -365,6 +369,8 @@ interactive Q&A session.
    `USER_FEEDBACK`, `IMAGE_DATA`, `CONVENTIONS`, `PHYSICS_VERDICT`, `FITTING_WARNINGS`,
    and `QUALITATIVE_EVAL` entries.
 
+   The agent's system prompt includes a **pressure resistance** paragraph: if the user pushes back on an analysis conclusion, the agent is instructed to review the specific evidence supporting the original conclusion rather than accommodating the user's preference. Changing a verdict requires new evidence or a logical argument.
+
 3. **Multi-turn loop:** each question is sent to `sdk.query()` with the full memory context
    prepended and the accumulated conversation history appended.  The history is formatted as
    an alternating `User: … / Assistant: …` dialogue block and grows with each exchange, so
@@ -392,6 +398,8 @@ The call constructs its user content block by concatenating:
 
 The system prompt is phase-dependent: for `"fitting"` and `"review"` phases, the
 four-criterion physics-first ranking paragraph is appended.  For `"literature"` it is omitted.
+
+**Anti-consensus instruction (non-proposals phases):** For `literature`, `fitting`, and `review` phases, the system prompt includes an instruction to preserve genuine disagreements rather than smoothing them into false consensus. If agents reach contradictory conclusions, both views are presented with the evidential tension explained. This instruction is intentionally *not* applied to the `proposals` phase, which explicitly requires deduplication and merging.
 
 **Dimensional check postscript (fitting and review phases only):** After the `messages.create()`
 call, `DebateEngine._append_dimensional_check()` extracts LaTeX inline equations (`$...$`) and
@@ -429,6 +437,8 @@ the agent SDK does not expose multimodal content blocks.
 **Concurrency is bounded.** Fitting agents are rate-limited by
 `asyncio.Semaphore(config.fitting_semaphore_limit)` (default 6) to prevent API saturation
 when `fitting_scope="per_hypothesis"` spawns `N_hypotheses × M` concurrent agents.
+
+**Fitting integrity checks guard against fabrication.** `run_fitting_code()` wraps `lmfit.minimize` and `Model` in sentinels; if no real optimizer call is detected post-exec, an `INTEGRITY_WARNING` is stored in `SharedMemory` and becomes visible to `ReviewerAgent`. This directly addresses the risk of LLMs hardcoding plausible-looking result values.
 
 ---
 
