@@ -50,6 +50,7 @@ class MTFConfig:
     # Fitting convention check (Addition 3)
     fitting_convention_check: bool = True
     fitting_max_convention_retries: int = 1
+    fitting_result_integrity_check: bool = True  # detect hardcoded/fabricated fit results
 
     # Proposal agent
     n_proposal: int = 2

@@ -26,6 +26,7 @@ class MemoryKind(str, Enum):
     FITTING_SKIPPED = "fitting_skipped"    # marker written when --no-fitting is active
     PROPOSALS = "proposals"
     PHENOMENON = "phenomenon"      # original user phenomenon anchored at run start
+    INTEGRITY_WARNING = "integrity_warning"  # fabrication/integrity issues from fitting sandbox
 
 
 @dataclass

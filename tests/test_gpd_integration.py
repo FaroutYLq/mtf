@@ -332,7 +332,7 @@ def test_config_defaults():
         "verification", "errors", "protocols", "conventions", "patterns", "skills"
     ]
     assert cfg.auto_detect_domains is True
-    assert cfg.gpd_domain_detection_max_domains == 4
+    assert cfg.gpd_domain_detection_max_domains == 3
     assert cfg.literature_plausibility_screen is True
     assert cfg.auto_reject_physics_failures is False
     assert cfg.fitting_convention_check is True
