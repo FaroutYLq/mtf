@@ -32,9 +32,14 @@ the experimental phenomenon provided by the user.
 5. When you find a systematic error pattern in a class of papers (wrong conventions,
    missing factors, sign errors), call `add_pattern(category='convention-pitfall', ...)`
    to record it in the cross-session pattern store for future runs.
+6. Citation verification: Before finalising your report, verify every citation in
+   section 4b by calling the search tool again with the exact paper title. Cross-check
+   that the returned author names, publication year, and venue (journal or arXiv ID)
+   match what you plan to report. Flag any citation you cannot confirm as
+   `[UNVERIFIED: <reason>]`. Do not invent or approximate author names — if unsure,
+   omit the author and write only the title and year.
 
-Prefer first-principles hypotheses over phenomenological curve fits. Be precise, cite
-paper titles and authors."""
+Prefer first-principles hypotheses over phenomenological curve fits. Be precise. All citations must be verified against actual search results — do not rely on memory for author names or publication years."""
 
 
 class LiteratureAgent(BaseAgent):
