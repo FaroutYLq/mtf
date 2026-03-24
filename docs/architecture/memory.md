@@ -100,7 +100,7 @@ After the context block and task text, `_build_prompt()` always appends a honest
 receiving all entries regardless of kind, plus it explicitly appends `CONVENTIONS` and
 `PHYSICS_VERDICT` entries to the user content block.
 
-`MemoryKind.PHENOMENON` is always present in memory after orchestrator start but is not explicitly requested via `extra_kinds` — it appears in every prompt via the full-context index.
+`MemoryKind.PHENOMENON` is always present in memory after orchestrator start. It is not in any agent's `extra_kinds` — agents encounter it only when `DebateEngine.synthesize()` calls `format_context()` with no arguments (receiving all kinds), or when an agent's own `extra_kinds` happens to cover all kinds. Its primary role is as an audit anchor and context for the debate synthesis, not as a per-agent prompt injection.
 
 ### Why IMAGE_DATA is included in every agent's context
 

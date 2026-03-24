@@ -399,7 +399,7 @@ The call constructs its user content block by concatenating:
 The system prompt is phase-dependent: for `"fitting"` and `"review"` phases, the
 four-criterion physics-first ranking paragraph is appended.  For `"literature"` it is omitted.
 
-**Anti-consensus instruction (non-proposals phases):** For `literature`, `fitting`, and `review` phases, the system prompt includes an instruction to preserve genuine disagreements rather than smoothing them into false consensus. If agents reach contradictory conclusions, both views are presented with the evidential tension explained. This instruction is intentionally *not* applied to the `proposals` phase, which explicitly requires deduplication and merging.
+**Anti-consensus instruction (non-proposals phases):** For all phases except `proposals` (i.e. `literature`, `fitting`, `review`, and `qualitative`), the system prompt includes an instruction to preserve genuine disagreements rather than smoothing them into false consensus. If agents reach contradictory conclusions, both views are presented with the evidential tension explained. This instruction is intentionally *not* applied to the `proposals` phase, which explicitly requires deduplication and merging.
 
 **Dimensional check postscript (fitting and review phases only):** After the `messages.create()`
 call, `DebateEngine._append_dimensional_check()` extracts LaTeX inline equations (`$...$`) and

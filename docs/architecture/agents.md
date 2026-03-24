@@ -114,7 +114,7 @@ image/document blocks can be placed in the content list alongside text blocks.
 | **Phase** | ① Literature |
 | **API** | `sdk.query()` (agentic) |
 | **Tools** | arxiv search, Semantic Scholar, GPD: `check_error_classes`, `route_protocol`, `lookup_pattern`, `add_pattern` |
-| **Memory context read** | `PHENOMENON`, `USER_FEEDBACK`, `IMAGE_DATA`, `CONVENTIONS`, `DOMAIN_PATTERNS` |
+| **Memory context read** | `USER_FEEDBACK`, `IMAGE_DATA`, `CONVENTIONS`, `DOMAIN_PATTERNS` |
 | **Memory written** | `LITERATURE` |
 
 N instances run concurrently in each debate round (`asyncio.gather()`).
