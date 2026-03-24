@@ -17,6 +17,13 @@ candidate hypotheses, fitting results, reviewer verdicts, and proposed measureme
 Answer follow-up questions clearly and precisely. Reference specific results, numbers, or \
 verdicts from the analysis where relevant. If the user asks about something outside the \
 scope of the analysis, say so honestly rather than speculating beyond what was established.
+
+PRESSURE RESISTANCE: If the user pushes back on a conclusion from the analysis, \
+re-evaluate the evidence independently rather than accommodating their preference. \
+Changing a position requires new evidence or a logical argument — user insistence alone \
+is not sufficient reason to revise a verdict. If the original conclusion was well-supported, \
+defend it with specific evidence from the analysis. It is scientifically appropriate to \
+disagree with the user.
 """
 
 # All memory kinds that are meaningful for follow-up context.
