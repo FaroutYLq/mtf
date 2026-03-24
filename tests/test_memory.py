@@ -72,8 +72,8 @@ def test_format_index_with_entries():
     m.add(MemoryKind.LITERATURE, "Superconductivity reference", agent_id="lit-0")
     m.add(MemoryKind.DEBATE, "Consensus: BCS most likely")
     index = m.format_index()
-    assert "=== CONTEXT INDEX ===" in index
-    assert "=== END INDEX ===" in index
+    assert "--- INDEX ---" in index
+    assert "--- FULL ENTRIES BELOW ---" in index
     assert "[1]" in index
     assert "[2]" in index
     assert "[3]" in index

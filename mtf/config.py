@@ -60,6 +60,3 @@ class MTFConfig:
     pdf_figure_extraction_max_tokens: int = 8192
     pdf_min_size_kb_for_enhanced: int = 200
 
-    # Honesty and memory structure (vibe-physics lessons)
-    honesty_enforcement: bool = True  # inject honesty reminder into every agent prompt
-    memory_index: bool = True         # prepend navigable index to context when >3 entries

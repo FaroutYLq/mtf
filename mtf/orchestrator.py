@@ -111,8 +111,10 @@ class MTFOrchestrator:
             Final report as a string.
         """
         gpd = GPDMCPClient() if self._config.enable_gpd_mcp else None
-        # Anchor the original phenomenon in memory so all agents can always reference it
-        self._memory.add(MemoryKind.PHENOMENON, phenomenon)
+        # Anchor the original phenomenon in memory so all agents can always reference it.
+        # Guard against double-write if run() is called more than once on the same instance.
+        if not self._memory.filter(MemoryKind.PHENOMENON):
+            self._memory.add(MemoryKind.PHENOMENON, phenomenon)
         if gpd is not None:
             gpd.start(self._config.gpd_servers)
 
