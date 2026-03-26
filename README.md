@@ -6,7 +6,7 @@ A multi-agent AI system for experimental physicists. Describe an unexplained phe
 
 ---
 
-![MTF Streamlit GUI](https://i.imgur.com/ADiU2OX.png)
+<img width="1275" height="1239" alt="gui_screenshot" src="https://github.com/user-attachments/assets/0b1962e8-d198-4090-87ea-943909009191" />
 
 ---
 
