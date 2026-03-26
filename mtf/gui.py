@@ -152,6 +152,11 @@ def _streamlit_app() -> None:
             index=0,
         )
         enable_gpd = st.checkbox("Enable GPD physics verification", value=True)
+        auto_detect_domains = st.checkbox(
+            "Auto-detect physics domains",
+            value=False,
+            help="Use GPD route_protocol/route_skill to infer physics domains from the phenomenon text. Off by default — set domains manually above.",
+        )
         enhanced_pdf = st.checkbox("Enhanced PDF extraction (2-pass figure analysis)", value=True)
 
         st.divider()
@@ -201,6 +206,7 @@ def _streamlit_app() -> None:
                 max_debate_rounds=max_debate_rounds,
                 physics_domains=physics_domains or ["condensed_matter"],
                 enable_gpd_mcp=enable_gpd,
+                auto_detect_domains=auto_detect_domains,
                 fitting_enabled=not skip_fitting,
                 reviewer_model=reviewer_model,
                 proposal_model=proposal_model,
