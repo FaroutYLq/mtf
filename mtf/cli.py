@@ -55,6 +55,11 @@ def build_parser() -> argparse.ArgumentParser:
         help="Skip the numerical fitting phase and run a qualitative hypothesis evaluation instead",
     )
     p.add_argument(
+        "--auto-detect-domains",
+        action="store_true",
+        help="Use GPD route_protocol/route_skill to infer physics domains from the phenomenon text (off by default)",
+    )
+    p.add_argument(
         "--no-gpd",
         action="store_true",
         help="Disable GPD MCP physics verification servers",
@@ -90,6 +95,7 @@ def main() -> None:
     gpd_kwargs: dict[str, object] = {
         "enable_gpd_mcp": not args.no_gpd,
         "physics_domains": args.physics_domains,
+        "auto_detect_domains": args.auto_detect_domains,
         "fitting_enabled": not args.no_fitting,
     }
     if args.gpd_servers is not None:
