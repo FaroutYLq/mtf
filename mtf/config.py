@@ -44,7 +44,7 @@ class MTFConfig:
         default_factory=lambda: ["verification", "errors", "protocols", "conventions", "patterns", "skills"]
     )
     # Auto domain classification (Addition 1)
-    auto_detect_domains: bool = True
+    auto_detect_domains: bool = False
     gpd_domain_detection_max_domains: int = 3
     # Literature plausibility screen (Addition 5)
     literature_plausibility_screen: bool = True
