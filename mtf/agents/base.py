@@ -54,7 +54,9 @@ class BaseAgent:
         collected: list[str] = []
         mcp_servers: dict = {}
         if self._tools:
-            mcp_servers["mtf"] = sdk.create_sdk_mcp_server("mtf", tools=self._tools)
+            # Use agent_id as server name to avoid collisions in concurrent fan-outs
+            server_name = f"mtf-{self._agent_id}"
+            mcp_servers[server_name] = sdk.create_sdk_mcp_server(server_name, tools=self._tools)
         options = sdk.ClaudeAgentOptions(
             model=self._model,
             system_prompt=self._system_prompt,

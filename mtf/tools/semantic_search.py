@@ -48,9 +48,10 @@ def make_semantic_search_tool() -> sdk.SdkMcpTool:
             "type": "object",
             "properties": {
                 "query": {"type": "string", "description": "Natural language or keyword query."},
-                "limit": {"type": "integer", "description": "Maximum number of results (default 5, max 20)."},
+                "limit": {"type": "integer", "description": "Maximum number of results.", "default": 5, "minimum": 1, "maximum": 20},
             },
             "required": ["query"],
+            "additionalProperties": False,
         },
         handler=_handler,
     )

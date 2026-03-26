@@ -101,7 +101,9 @@ class GPDMCPClient:
                 try:
                     tools_result = await session.list_tools()
                     self._tool_schemas[name] = {
-                        t.name: t.inputSchema for t in tools_result.tools
+                        # inputSchema is camelCase in mcp >=1.0; getattr guards against older versions
+                        t.name: getattr(t, "inputSchema", None) or getattr(t, "input_schema", {})
+                        for t in tools_result.tools
                     }
                 except Exception as exc:
                     logger.debug("Could not list tools for GPD server '%s': %s", name, exc)
