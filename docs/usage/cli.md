@@ -25,6 +25,7 @@ mtf   # interactive mode — you are prompted for everything
 | `--files` | _(none)_ | Input files to digest (images: PNG, JPG, GIF, WebP; documents: PDF) |
 | `--physics-domains` | `condensed_matter` | GPD physics domains (space-separated) |
 | `--no-fitting` | _(off)_ | Skip quantitative fitting; run qualitative hypothesis evaluation instead |
+| `--auto-detect-domains` | _(off)_ | Infer physics domains from the phenomenon text via GPD (opt-in) |
 | `--no-gpd` | _(off)_ | Disable GPD MCP physics verification |
 | `--gpd-servers` | _(all)_ | GPD servers to start |
 | `--no-enhanced-pdf` | _(off)_ | Use single-pass PDF extraction instead of the default two-pass figure analysis |

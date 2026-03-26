@@ -141,7 +141,7 @@ Before the first fan-out, three setup steps run once:
    names from the responses, and overwrites `config.physics_domains` for the run (ephemeral —
    no persistence). Falls back to the configured default if no domains are detected. The
    detected domains (or fallback notice) are stored as `DOMAIN_CLASSIFICATION` for audit.
-   Controlled by `config.auto_detect_domains` (default `True`).
+   Controlled by `config.auto_detect_domains` (default `False`).
 
 2. **Convention locking:** The phase calls GPD `subfield_defaults` once per domain in
    `config.physics_domains` and stores each result as `MemoryKind.CONVENTIONS`.  Every subsequent
