@@ -154,7 +154,7 @@ async def run_fitting_phase(
                 "when your fitting code fails to converge or produces unphysical parameters."),
         ] if t is not None]
 
-    async def fit_with_semaphore(agent: FittingAgent, hypothesis: str) -> dict[str, object]:
+    async def fit_with_semaphore(agent: FittingAgent, hypothesis: str) -> str:
         async with semaphore:
             return await agent.fit(hypothesis)
 
@@ -254,8 +254,7 @@ async def run_fitting_phase(
             results = await asyncio.gather(
                 *(fit_with_semaphore(a, hyp) for a in agents)
             )
-            reports = [str(r) for r in results]
-            all_fit_reports.extend(reports)
+            all_fit_reports.extend(results)
     else:
         agents = [
             FittingAgent(
@@ -272,7 +271,7 @@ async def run_fitting_phase(
         results = await asyncio.gather(
             *(fit_with_semaphore(a, hyp) for hyp in hypotheses for a in agents)
         )
-        all_fit_reports = [str(r) for r in results]
+        all_fit_reports = list(results)
 
     # Run phase-level physics checks before synthesis so PHYSICS_VERDICT is populated (Addition 2)
     await _run_phase_physics_checks(

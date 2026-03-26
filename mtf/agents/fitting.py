@@ -97,7 +97,7 @@ class FittingAgent(BaseAgent):
         lines = [line.strip() for line in response.splitlines() if line.strip()]
         return lines
 
-    async def fit(self, hypothesis: str) -> dict[str, object]:
+    async def fit(self, hypothesis: str) -> str:
         """Generate and execute fitting code for this hypothesis."""
         task = (
             f"Hypothesis:\n{hypothesis}\n\n"
@@ -192,4 +192,4 @@ class FittingAgent(BaseAgent):
             agent_id=self._agent_id,
             hypothesis=hypothesis,
         )
-        return fit_output
+        return report
