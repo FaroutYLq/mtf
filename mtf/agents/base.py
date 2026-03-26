@@ -25,6 +25,10 @@ _CONVENTION_REMINDER = (
 class BaseAgent:
     """Wraps sdk.query() and injects shared memory context into every prompt."""
 
+    # Subclasses may override to grant broader tool permissions.
+    # Use "bypassPermissions" only for agents whose tools are read-only.
+    _permission_mode: str = "default"
+
     def __init__(
         self,
         agent_id: str,
@@ -61,6 +65,7 @@ class BaseAgent:
             model=self._model,
             system_prompt=self._system_prompt,
             mcp_servers=mcp_servers,
+            permission_mode=self._permission_mode,
         )
         async for chunk in sdk.query(prompt=prompt, options=options):
             if hasattr(chunk, "text"):

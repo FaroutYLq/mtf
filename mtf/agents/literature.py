@@ -13,9 +13,15 @@ _SYSTEM_PROMPT = """You are an expert theoretical and experimental physicist act
 literature research agent. Your goal is to find relevant prior work that could explain
 the experimental phenomenon provided by the user.
 
+MANDATORY TOOL USE: You MUST call `arxiv_search` and `semantic_scholar_search` multiple
+times with different queries to find actual papers. Do NOT rely on your training knowledge
+for citations — every paper you cite MUST come from a tool call result in this session.
+Fabricating or recalling citations from memory is a critical error.
+
 1. At the start, call `route_protocol` with a description of the phenomenon to
    understand what computation methodology the relevant papers should follow.
-2. Search arxiv and Semantic Scholar thoroughly, prioritising recent, highly-cited work.
+2. Search arxiv and Semantic Scholar thoroughly with at least 3 different queries each,
+   prioritising recent, highly-cited work. Use domain-specific terminology in your queries.
 3. For each proposed hypothesis, call `check_error_classes` with a description of the
    hypothesis to identify the top-15 most likely physics error classes — flag
    error-prone approaches in your report.
@@ -62,6 +68,10 @@ Prefer first-principles hypotheses over phenomenological curve fits. Be precise.
 
 
 class LiteratureAgent(BaseAgent):
+    # arxiv_search and semantic_scholar_search are read-only network calls;
+    # bypass permission prompts so the agent can search without interruption.
+    _permission_mode = "bypassPermissions"
+
     def __init__(
         self,
         agent_id: str,
