@@ -58,7 +58,12 @@ class DebateEngine:
             f"You are a synthesis engine for the {phase} phase of a multi-agent "
             "physics research assistant. Your job is to produce a single coherent "
             "synthesis of the provided agent reports, highlighting the strongest "
-            "hypotheses or conclusions. Be concise and precise."
+            "hypotheses or conclusions. Be concise and precise.\n\n"
+            "REFERENCES REQUIREMENT: End your synthesis with a '## References' section "
+            "that consolidates every cited paper that appears across the agent reports "
+            "(deduplicated). Format each entry as: Authors. Title. Venue/arXiv ID, Year. "
+            "Mark any citation flagged [UNVERIFIED] in the source reports. "
+            "Do not invent citations — only include papers explicitly cited in the reports."
         )
 
         # Anti-consensus instruction for scientific phases only (not proposals,
