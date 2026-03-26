@@ -145,6 +145,7 @@ async def run_literature_phase(
                 model=config.literature_model,
                 memory=memory,
                 gpd_tools=gpd_tools,
+                config=config,
             )
             for i in range(config.n_literature)
         ]

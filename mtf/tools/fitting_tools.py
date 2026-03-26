@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import builtins
 import functools
 import textwrap
 import traceback
@@ -10,6 +11,44 @@ from typing import Any
 import numpy as np
 from lmfit import Model, Parameters, minimize as _real_minimize
 from scipy import optimize, stats
+
+# Modules that fitting code is allowed to import.  Anything outside this set
+# raises ImportError so the generated code cannot reach os, subprocess, socket, etc.
+_ALLOWED_IMPORTS = frozenset({
+    "numpy", "np", "lmfit", "scipy", "scipy.optimize", "scipy.stats",
+    "math", "cmath", "functools", "itertools", "collections",
+})
+
+
+def _make_restricted_import(real_import: Any) -> Any:
+    """Return an __import__ that allows only _ALLOWED_IMPORTS."""
+    def _import(name: str, *args: Any, **kwargs: Any) -> Any:
+        top = name.split(".")[0]
+        if top not in _ALLOWED_IMPORTS and name not in _ALLOWED_IMPORTS:
+            raise ImportError(
+                f"Import of '{name}' is not permitted in fitting code. "
+                f"Allowed: {sorted(_ALLOWED_IMPORTS)}"
+            )
+        return real_import(name, *args, **kwargs)
+    return _import
+
+
+_SAFE_BUILTINS: dict[str, Any] = {
+    k: getattr(builtins, k)
+    for k in (
+        "abs", "all", "any", "bool", "bytes", "callable", "chr", "complex",
+        "dict", "divmod", "enumerate", "filter", "float", "format",
+        "frozenset", "getattr", "hasattr", "hash", "int", "isinstance",
+        "issubclass", "iter", "len", "list", "map", "max", "min", "next",
+        "object", "ord", "pow", "print", "range", "repr", "reversed",
+        "round", "set", "slice", "sorted", "str", "sum", "tuple", "type",
+        "zip", "NotImplemented", "Ellipsis", "None", "True", "False",
+        "ArithmeticError", "Exception", "IndexError", "KeyError",
+        "NameError", "RuntimeError", "StopIteration", "TypeError",
+        "ValueError", "ZeroDivisionError", "ImportError",
+    )
+}
+_SAFE_BUILTINS["__import__"] = _make_restricted_import(builtins.__import__)
 
 
 def _make_sentinel_minimize(called_flag: list[bool]):
@@ -106,6 +145,7 @@ def run_fitting_code(code: str, data: dict[str, Any], integrity_check: bool = Tr
     if integrity_check:
         optimizer_called: list[bool] = [False]
         namespace: dict[str, Any] = {
+            "__builtins__": _SAFE_BUILTINS,
             "np": np,
             "numpy": np,
             "Model": _make_sentinel_model(optimizer_called),
@@ -118,6 +158,7 @@ def run_fitting_code(code: str, data: dict[str, Any], integrity_check: bool = Tr
         }
     else:
         namespace = {
+            "__builtins__": _SAFE_BUILTINS,
             "np": np,
             "numpy": np,
             "Model": Model,
