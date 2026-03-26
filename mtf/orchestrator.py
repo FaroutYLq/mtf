@@ -53,12 +53,22 @@ class MTFOrchestrator:
         if not self._config.auto_detect_domains:
             return
 
+        # Enrich the classification input with any image/document data already in memory.
+        image_entries = self._memory.filter(MemoryKind.IMAGE_DATA)
+        if image_entries:
+            image_summary = "\n".join(e.content[:300] for e in image_entries[:3])
+            classification_text = f"{phenomenon}\n\n[Extracted file data]\n{image_summary}"
+        else:
+            classification_text = phenomenon
+        # Cap total length sent to GPD
+        classification_text = classification_text[:1000]
+
         detected: list[str] = []
 
         # Try route_protocol (protocols server — always present)
         proto_result = await asyncio.to_thread(
             gpd.call, "protocols", "route_protocol",
-            computation_type=phenomenon[:500],
+            computation_type=classification_text,
         )
         if proto_result:
             normalized = re.sub(r"[\s\-]+", "_", proto_result.lower())
@@ -69,7 +79,7 @@ class MTFOrchestrator:
         # Try route_skill (skills server — gracefully absent if not installed)
         skill_result = await asyncio.to_thread(
             gpd.call, "skills", "route_skill",
-            phenomenon=phenomenon[:500],
+            phenomenon=classification_text,
         )
         if skill_result:
             normalized = re.sub(r"[\s\-]+", "_", skill_result.lower())
@@ -132,10 +142,6 @@ class MTFOrchestrator:
             if gpd is not None and gpd.available:
                 gpd.call("patterns", "seed_patterns")
 
-            # Auto-detect physics domains from the phenomenon (Addition 1)
-            if gpd is not None and gpd.available:
-                await self._classify_domains(phenomenon, gpd)
-
             # If no files were passed programmatically, ask the user interactively
             if files is None:
                 files = await self._interface.ask_for_files() or None
@@ -161,6 +167,10 @@ class MTFOrchestrator:
                     + "\n".join(summary_lines),
                     title="MTF: File Digest",
                 )
+
+            # Auto-detect physics domains — runs after file digestion so IMAGE_DATA is available
+            if gpd is not None and gpd.available:
+                await self._classify_domains(phenomenon, gpd)
 
             # Phase 1: Literature
             hypotheses = await run_literature_phase(
