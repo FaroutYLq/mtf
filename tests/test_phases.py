@@ -101,3 +101,80 @@ async def test_literature_phase_loops_on_rejection(memory, config, mock_debate):
     assert call_count == 2
     feedback_entries = memory.filter(MemoryKind.USER_FEEDBACK)
     assert len(feedback_entries) >= 1
+
+
+@pytest.mark.asyncio
+async def test_fitting_phase_passes_string_reports_to_debate(memory, config, mock_debate):
+    """Regression test: debate engine must receive str reports, not dict reprs."""
+    from mtf.phases.fitting_phase import run_fitting_phase
+    from mtf.toolkit.registry import ToolkitRegistry
+
+    captured_reports: list[list[str]] = []
+
+    async def capture_synthesize(reports, **kwargs):
+        captured_reports.append(list(reports))
+        return "Fitting synthesis: quantum tunneling fits well"
+
+    mock_debate.synthesize = capture_synthesize
+
+    fit_report = "Hypothesis: quantum tunneling\n\nFit output: {'chi_squared': 1.2}"
+
+    with patch("mtf.phases.fitting_phase.FittingAgent") as MockAgent:
+        instance = AsyncMock()
+        instance.identify_needed_toolkit_items = AsyncMock(return_value=[])
+        instance.fit = AsyncMock(return_value=fit_report)
+        MockAgent.return_value = instance
+
+        interface = MockInterface(confirm_value=True)
+        await run_fitting_phase(
+            hypotheses=["quantum tunneling hypothesis"],
+            config=config,
+            memory=memory,
+            interface=interface,
+            debate_engine=mock_debate,
+            toolkit=ToolkitRegistry(),
+        )
+
+    assert len(captured_reports) == 1
+    reports = captured_reports[0]
+    assert all(isinstance(r, str) for r in reports), (
+        f"Debate engine received non-string reports: {[type(r) for r in reports]}"
+    )
+    assert any("Hypothesis" in r for r in reports), (
+        "Reports should contain the formatted hypothesis text, not a raw dict repr"
+    )
+
+
+@pytest.mark.asyncio
+async def test_fitting_phase_stores_fit_results_in_memory(memory, config, mock_debate):
+    """FIT_RESULT memory entries should be populated after the fitting fan-out."""
+    from mtf.phases.fitting_phase import run_fitting_phase
+    from mtf.toolkit.registry import ToolkitRegistry
+
+    mock_debate.synthesize = AsyncMock(return_value="Synthesis")
+
+    fit_report = "Hypothesis: superconductivity\n\nFit output: {'chi_squared': 0.9}"
+
+    with patch("mtf.phases.fitting_phase.FittingAgent") as MockAgent:
+        instance = AsyncMock()
+        instance.identify_needed_toolkit_items = AsyncMock(return_value=[])
+        instance.fit = AsyncMock(return_value=fit_report)
+        MockAgent.return_value = instance
+
+        await run_fitting_phase(
+            hypotheses=["superconductivity hypothesis"],
+            config=config,
+            memory=memory,
+            interface=MockInterface(confirm_value=True),
+            debate_engine=mock_debate,
+            toolkit=ToolkitRegistry(),
+        )
+
+    fit_entries = memory.filter(MemoryKind.FIT_RESULT)
+    assert len(fit_entries) == 0, (
+        "FIT_RESULT entries are written by FittingAgent.fit() itself; "
+        "the mocked agent does not write them, so memory should be empty here"
+    )
+    # The synthesis is stored as DEBATE
+    debate_entries = memory.filter(MemoryKind.DEBATE)
+    assert len(debate_entries) == 1
