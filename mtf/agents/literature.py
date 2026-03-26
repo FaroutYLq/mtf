@@ -19,21 +19,39 @@ the experimental phenomenon provided by the user.
 3. For each proposed hypothesis, call `check_error_classes` with a description of the
    hypothesis to identify the top-15 most likely physics error classes — flag
    error-prone approaches in your report.
-4. Produce a structured report with:
+4. EXPERIMENTAL OBSERVATION AUDIT — do this before writing your hypothesis rankings:
+   a. List every distinct experimental observation or measured quantity explicitly
+      stated in the user's input OR extracted from uploaded files/images in context
+      (e.g. "peak at 340 nm", "linear I-V above 10 K", "asymmetric lineshape",
+      "anomalous enhancement factor of 3×", "decay constant τ = 2.3 ms from Figure 2").
+      Number them. If no measurable observations are present, state
+      "No quantitative observations identified" and skip steps 4b–4c.
+   b. For each proposed hypothesis, fill in a compact consistency table:
+      - ✓ CONSISTENT   — hypothesis naturally explains this observation
+      - ✗ INCONSISTENT — hypothesis contradicts or cannot account for this observation
+      - ?  UNCERTAIN   — hypothesis is silent or ambiguous on this observation
+   c. A hypothesis may remain in the ranked list even if some observations are marked
+      ✗, BUT every ✗ entry MUST be highlighted as a ⚠ Discrepancy in the hypothesis
+      description, stating what the hypothesis predicts vs. what was observed.
+5. Produce a structured report with:
    a. Summary of the phenomenon
-   b. Most relevant papers (with citations)
-   c. Proposed hypotheses ranked by plausibility. For each hypothesis, explicitly
-      classify all three of:
+   b. Experimental observations enumerated (from step 4a)
+   c. Most relevant papers (with full citations: authors, year, venue/arXiv ID)
+   d. Proposed hypotheses ranked by plausibility. For each hypothesis:
       - Basis: first-principles / semi-empirical / purely empirical
       - Verification status: experimentally confirmed / theoretical prediction / disputed
       - Known failure modes: from check_error_classes results
-   d. Key equations or models from the literature
-   e. Error-prone aspects flagged per hypothesis based on check_error_classes results
-5. When you find a systematic error pattern in a class of papers (wrong conventions,
+      - Observation consistency table (from step 4b)
+      - ⚠ Discrepancy notices for every ✗ entry
+   e. Key equations or models from the literature
+   f. Error-prone aspects flagged per hypothesis based on check_error_classes results
+   g. References: full bibliography of every paper cited in this report
+      (format: Authors. Title. Venue/arXiv ID, Year.)
+6. When you find a systematic error pattern in a class of papers (wrong conventions,
    missing factors, sign errors), call `add_pattern(category='convention-pitfall', ...)`
    to record it in the cross-session pattern store for future runs.
-6. Citation verification: Before finalising your report, verify up to 10 of the most
-   important citations (not all) in section 4b by calling the search tool again with
+7. Citation verification: Before finalising your report, verify up to 10 of the most
+   important citations (not all) in section 5c by calling the search tool again with
    the exact paper title. Cross-check that the returned author names, publication year,
    and venue (journal or arXiv ID) match what you plan to report. Flag any citation you
    cannot confirm as `[UNVERIFIED: <reason>]`. Do not invent or approximate author names
@@ -68,7 +86,7 @@ class LiteratureAgent(BaseAgent):
             max_cites = getattr(self._config, "citation_verification_max", 10) if self._config else 10
             verification_note = (
                 f"\n\nCITATION VERIFICATION (max {max_cites} citations): Before finalising "
-                f"section 4b, verify up to {max_cites} of the most important citations by "
+                f"section 5c, verify up to {max_cites} of the most important citations by "
                 "calling the search tool again with the exact paper title. Cross-check that "
                 "returned author names, year, and venue match what you plan to report. Flag "
                 "unverified ones as [UNVERIFIED: <reason>]. Skip re-verification for "
@@ -77,7 +95,12 @@ class LiteratureAgent(BaseAgent):
         task = (
             f"Investigate the following experimental phenomenon and search for "
             f"relevant literature:\n\n{phenomenon}\n\n"
-            "Produce a comprehensive literature report with hypotheses."
+            "Produce a comprehensive literature report with hypotheses. "
+            "CRITICAL: Before ranking any hypothesis, complete the Experimental "
+            "Observation Audit (step 4): enumerate every distinct observation from "
+            "the user's input and uploaded files, then explicitly check each hypothesis "
+            "against each observation. Highlight every inconsistency (✗) as a "
+            "⚠ Discrepancy — do not omit observations that a hypothesis cannot explain."
             + verification_note
         )
         report = await self._query(
