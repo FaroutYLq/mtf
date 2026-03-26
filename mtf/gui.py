@@ -126,15 +126,19 @@ def _streamlit_app() -> None:
 
         physics_domain_options = [
             "condensed_matter",
-            "high_energy",
+            "qft",
+            "gr",
+            "amo",
+            "plasma",
             "nuclear",
-            "atomic_molecular",
+            "particle_physics",
+            "cosmology",
             "optics",
             "fluid_dynamics",
-            "plasma",
-            "cosmology",
+            "electromagnetism",
+            "thermodynamics",
+            "statistical_mechanics",
             "biophysics",
-            "geophysics",
         ]
         physics_domains = st.multiselect(
             "Physics domains",
