@@ -11,11 +11,22 @@ import traceback
 from pathlib import Path
 from typing import Any
 
+from mtf.interface import HumanInterface
+
+# ---------------------------------------------------------------------------
+# Module-level session store — survives browser refreshes
+# ---------------------------------------------------------------------------
+# Streamlit session_state is reset on a full page refresh (F5 / reload).
+# We keep a single-slot global mirror of the orchestrator's mutable state so
+# that a refreshed tab can reconnect to a still-running analysis.
+#
+# Keys:  ui_queue, thread, messages, pending, running, finished,
+#        final_report, error, tmp_dir
+_live_session: dict[str, Any] = {}
+
 # ---------------------------------------------------------------------------
 # HumanInterface implementation
 # ---------------------------------------------------------------------------
-
-from mtf.interface import HumanInterface
 
 _REPLY_TIMEOUT = 3600.0  # 1 hour — abandon wait if browser tab was closed
 
@@ -97,6 +108,21 @@ def _streamlit_app() -> None:
     st.caption("Multi-agent AI system for experimental physicists")
 
     ss = st.session_state
+
+    # ------------------------------------------------------------------
+    # Reconnect to a live session after a browser refresh
+    # ------------------------------------------------------------------
+    # On a full page reload st.session_state is blank. If the orchestrator
+    # is still running (or finished) we restore its state so the user can
+    # continue without losing progress.
+    if not ss.get("_initialised") and _live_session:
+        thread: threading.Thread | None = _live_session.get("thread")
+        if thread is not None and (thread.is_alive() or _live_session.get("finished")):
+            for k, v in _live_session.items():
+                setattr(ss, k, v)
+            ss._initialised = True
+    elif not ss.get("_initialised"):
+        ss._initialised = True
 
     # ------------------------------------------------------------------
     # Sidebar — configuration
@@ -238,6 +264,20 @@ def _streamlit_app() -> None:
             ss.final_report = None
             ss.error = None
             ss.tmp_dir = tmp_dir
+            ss._initialised = True
+            # Persist in the module-level store so a browser refresh can
+            # reconnect to this run without losing progress.
+            _live_session.update(
+                running=True,
+                finished=False,
+                ui_queue=ui_queue,
+                thread=thread,
+                messages=ss.messages,  # shared list reference
+                pending=None,
+                final_report=None,
+                error=None,
+                tmp_dir=tmp_dir,
+            )
             st.rerun()
         return
 
@@ -256,30 +296,35 @@ def _streamlit_app() -> None:
             kind = msg[0]
             if kind == "show":
                 _, content, title = msg
-                ss.messages = ss.get("messages", []) + [
-                    {"type": "show", "content": content, "title": title or "MTF"}
-                ]
+                new_msg = {"type": "show", "content": content, "title": title or "MTF"}
+                ss.messages = ss.get("messages", []) + [new_msg]
+                _live_session["messages"] = ss.messages
             elif kind in ("ask", "confirm"):
                 _, prompt, reply_q = msg
                 ss.pending = {"type": kind, "prompt": prompt, "reply_q": reply_q}
+                _live_session["pending"] = ss.pending
                 break  # wait for user response before draining further
             elif kind == "done":
                 _, report, _ = msg
                 ss.final_report = report
                 ss.running = False
                 ss.finished = True
+                _live_session.update(final_report=report, running=False, finished=True)
                 if tmp_dir := ss.get("tmp_dir"):
                     tmp_dir.cleanup()
                     ss.tmp_dir = None
+                    _live_session["tmp_dir"] = None
                 break
             elif kind == "error":
                 _, tb, _ = msg
                 ss.error = tb
                 ss.running = False
                 ss.finished = True
+                _live_session.update(error=tb, running=False, finished=True)
                 if tmp_dir := ss.get("tmp_dir"):
                     tmp_dir.cleanup()
                     ss.tmp_dir = None
+                    _live_session["tmp_dir"] = None
                 break
 
     # Render accumulated show() messages
@@ -301,6 +346,7 @@ def _streamlit_app() -> None:
                 if st.form_submit_button("Submit"):
                     pending["reply_q"].put(user_text)
                     ss.pending = None
+                    _live_session["pending"] = None
                     st.rerun()
 
         elif pending["type"] == "confirm":
@@ -310,11 +356,13 @@ def _streamlit_app() -> None:
                 if st.button("✅ Approve", type="primary"):
                     pending["reply_q"].put(True)
                     ss.pending = None
+                    _live_session["pending"] = None
                     st.rerun()
             with col2:
                 if st.button("✏️ Request Changes"):
                     pending["reply_q"].put(False)
                     ss.pending = None
+                    _live_session["pending"] = None
                     st.rerun()
 
     # Poll while running with no pending interaction
@@ -345,8 +393,9 @@ def _streamlit_app() -> None:
             if tmp_dir := ss.get("tmp_dir"):
                 tmp_dir.cleanup()
             for key in ["running", "finished", "ui_queue", "thread", "messages",
-                        "pending", "final_report", "error", "tmp_dir"]:
+                        "pending", "final_report", "error", "tmp_dir", "_initialised"]:
                 ss.pop(key, None)
+            _live_session.clear()
             st.rerun()
 
 
