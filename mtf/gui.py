@@ -120,7 +120,10 @@ def _streamlit_app() -> None:
         if thread is not None and (thread.is_alive() or _live_session.get("finished")):
             for k, v in _live_session.items():
                 setattr(ss, k, v)
-            ss._initialised = True
+        # Always mark initialised — even when the thread died without setting
+        # finished=True (e.g. event-loop crash before the try/except in
+        # _run_orchestrator) — so this block does not re-run on every poll.
+        ss._initialised = True
     elif not ss.get("_initialised"):
         ss._initialised = True
 
@@ -272,7 +275,7 @@ def _streamlit_app() -> None:
                 finished=False,
                 ui_queue=ui_queue,
                 thread=thread,
-                messages=ss.messages,  # shared list reference
+                messages=ss.messages,
                 pending=None,
                 final_report=None,
                 error=None,
