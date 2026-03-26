@@ -28,8 +28,8 @@ For fitting and review phases, `DebateEngine` also extracts LaTeX/dimensional ex
 Before the literature phase, `MTFOrchestrator._classify_domains()` calls `route_protocol` and `route_skill` with the phenomenon description, parses known GPD domain names from the responses, and overwrites `config.physics_domains` for the run (ephemeral — no persistence). Falls back to the configured default if no domains are detected.
 
 Controlled by:
-- `config.auto_detect_domains: bool = True`
-- `config.gpd_domain_detection_max_domains: int = 4`
+- `config.auto_detect_domains: bool = False`
+- `config.gpd_domain_detection_max_domains: int = 3`
 
 The detected domains (or fallback notice) are written to `MemoryKind.DOMAIN_CLASSIFICATION` as an audit trail.
 
@@ -84,8 +84,8 @@ config = MTFConfig(
     enable_gpd_mcp=True,
     physics_domains=["condensed_matter", "qft"],
     # Domain auto-detection
-    auto_detect_domains=True,
-    gpd_domain_detection_max_domains=4,
+    auto_detect_domains=False,
+    gpd_domain_detection_max_domains=3,
     # Literature plausibility screen
     literature_plausibility_screen=True,
     auto_reject_physics_failures=False,
