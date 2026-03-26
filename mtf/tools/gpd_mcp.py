@@ -1,8 +1,8 @@
-"""GPD MCP client: bridges GPD MCP servers to sdk.Tool objects.
+"""GPD MCP client: bridges GPD MCP servers to sdk.SdkMcpTool objects.
 
 Each GPD server runs as a subprocess communicating over stdio MCP protocol.
 A dedicated background event loop handles all async MCP I/O, exposing
-synchronous sdk.Tool-compatible callables to mtf agents.
+SdkMcpTool-compatible callables to mtf agents.
 """
 
 from __future__ import annotations
@@ -33,9 +33,9 @@ class GPDMCPClient:
     """Manages live connections to one or more GPD MCP servers.
 
     All async MCP I/O runs in a dedicated background thread with its own
-    event loop so that sync tool functions (required by sdk.Tool.from_function)
-    can block-call into the async MCP session without conflicting with the
-    main asyncio event loop used by the rest of mtf.
+    event loop so that sync tool functions can block-call into the async MCP
+    session without conflicting with the main asyncio event loop used by the
+    rest of mtf.
 
     Usage::
 
@@ -54,6 +54,7 @@ class GPDMCPClient:
         )
         self._thread.start()
         self._sessions: dict[str, Any] = {}  # server_name -> ClientSession
+        self._tool_schemas: dict[str, dict[str, Any]] = {}  # server_name -> {tool_name -> inputSchema}
         self._exit_stack: AsyncExitStack | None = None
         self._available: bool = False
 
@@ -96,6 +97,17 @@ class GPDMCPClient:
                 )
                 await session.initialize()
                 self._sessions[name] = session
+                # Cache input schemas for all tools on this server
+                try:
+                    tools_result = await session.list_tools()
+                    self._tool_schemas[name] = {
+                        # inputSchema is camelCase in mcp >=1.0; getattr guards against older versions
+                        t.name: getattr(t, "inputSchema", None) or getattr(t, "input_schema", {})
+                        for t in tools_result.tools
+                    }
+                except Exception as exc:
+                    logger.debug("Could not list tools for GPD server '%s': %s", name, exc)
+                    self._tool_schemas[name] = {}
                 logger.debug("GPD MCP server '%s' started.", name)
             except Exception as exc:
                 logger.warning("Failed to start GPD server '%s': %s", name, exc)
@@ -140,8 +152,8 @@ class GPDMCPClient:
         """
         return await asyncio.to_thread(self.call, server, tool_name, **kwargs)
 
-    def make_tool(self, server: str, tool_name: str, description: str) -> sdk.Tool | None:
-        """Return an sdk.Tool backed by the given MCP server tool.
+    def make_tool(self, server: str, tool_name: str, description: str) -> sdk.SdkMcpTool | None:
+        """Return an sdk.SdkMcpTool backed by the given MCP server tool.
 
         Returns ``None`` if the server was not started (e.g. GPD not installed),
         so callers can filter None values out of their tool lists.
@@ -150,13 +162,19 @@ class GPDMCPClient:
             return None
 
         client = self  # captured by closure
+        input_schema = self._tool_schemas.get(server, {}).get(tool_name, {})
 
-        def _tool_fn(**kwargs: Any) -> str:
-            return client.call(server, tool_name, **kwargs)
+        async def _handler(args: Any) -> dict:
+            kwargs = args if isinstance(args, dict) else {}
+            result = await asyncio.to_thread(client.call, server, tool_name, **kwargs)
+            return {"content": [{"type": "text", "text": result}]}
 
-        _tool_fn.__name__ = tool_name
-        _tool_fn.__doc__ = description
-        return sdk.Tool.from_function(_tool_fn)
+        return sdk.SdkMcpTool(
+            name=tool_name,
+            description=description,
+            input_schema=input_schema or {"type": "object", "properties": {}},
+            handler=_handler,
+        )
 
     @property
     def available(self) -> bool:

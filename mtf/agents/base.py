@@ -52,12 +52,17 @@ class BaseAgent:
     async def _query(self, task: str, extra_kinds: tuple[MemoryKind, ...] = ()) -> str:
         prompt = self._build_prompt(task, extra_kinds)
         collected: list[str] = []
-        async for chunk in sdk.query(
-            prompt=prompt,
+        mcp_servers: dict = {}
+        if self._tools:
+            # Use agent_id as server name to avoid collisions in concurrent fan-outs
+            server_name = f"mtf-{self._agent_id}"
+            mcp_servers[server_name] = sdk.create_sdk_mcp_server(server_name, tools=self._tools)
+        options = sdk.ClaudeAgentOptions(
             model=self._model,
             system_prompt=self._system_prompt,
-            tools=self._tools,
-        ):
+            mcp_servers=mcp_servers,
+        )
+        async for chunk in sdk.query(prompt=prompt, options=options):
             if hasattr(chunk, "text"):
                 collected.append(chunk.text)
         return "".join(collected)
