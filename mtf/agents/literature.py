@@ -21,14 +21,17 @@ the experimental phenomenon provided by the user.
    error-prone approaches in your report.
 4. EXPERIMENTAL OBSERVATION AUDIT — do this before writing your hypothesis rankings:
    a. List every distinct experimental observation or measured quantity explicitly
-      stated in the user's input (e.g. "peak at 340 nm", "linear I-V above 10 K",
-      "asymmetric lineshape", "anomalous enhancement factor of 3×"). Number them.
+      stated in the user's input OR extracted from uploaded files/images in context
+      (e.g. "peak at 340 nm", "linear I-V above 10 K", "asymmetric lineshape",
+      "anomalous enhancement factor of 3×", "decay constant τ = 2.3 ms from Figure 2").
+      Number them. If no measurable observations are present, state
+      "No quantitative observations identified" and skip steps 4b–4c.
    b. For each proposed hypothesis, fill in a compact consistency table:
       - ✓ CONSISTENT   — hypothesis naturally explains this observation
       - ✗ INCONSISTENT — hypothesis contradicts or cannot account for this observation
       - ?  UNCERTAIN   — hypothesis is silent or ambiguous on this observation
    c. A hypothesis may remain in the ranked list even if some observations are marked
-      ✗, BUT every ✗ entry MUST be highlighted as a "⚠ Discrepancy" in the hypothesis
+      ✗, BUT every ✗ entry MUST be highlighted as a ⚠ Discrepancy in the hypothesis
       description, stating what the hypothesis predicts vs. what was observed.
 5. Produce a structured report with:
    a. Summary of the phenomenon
@@ -95,9 +98,9 @@ class LiteratureAgent(BaseAgent):
             "Produce a comprehensive literature report with hypotheses. "
             "CRITICAL: Before ranking any hypothesis, complete the Experimental "
             "Observation Audit (step 4): enumerate every distinct observation from "
-            "the user's input and explicitly check each hypothesis against each "
-            "observation. Highlight every discrepancy (✗) as a ⚠ Discrepancy notice — "
-            "do not omit observations that a hypothesis cannot explain."
+            "the user's input and uploaded files, then explicitly check each hypothesis "
+            "against each observation. Highlight every inconsistency (✗) as a "
+            "⚠ Discrepancy — do not omit observations that a hypothesis cannot explain."
             + verification_note
         )
         report = await self._query(

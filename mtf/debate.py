@@ -54,16 +54,19 @@ class DebateEngine:
         )
         memory_ctx = self._memory.format_context()
 
-        base_system = (
-            f"You are a synthesis engine for the {phase} phase of a multi-agent "
-            "physics research assistant. Your job is to produce a single coherent "
-            "synthesis of the provided agent reports, highlighting the strongest "
-            "hypotheses or conclusions. Be concise and precise.\n\n"
-            "REFERENCES REQUIREMENT: End your synthesis with a '## References' section "
+        references_requirement = (
+            "\n\nREFERENCES REQUIREMENT: End your synthesis with a '## References' section "
             "that consolidates every cited paper that appears across the agent reports "
             "(deduplicated). Format each entry as: Authors. Title. Venue/arXiv ID, Year. "
             "Mark any citation flagged [UNVERIFIED] in the source reports. "
             "Do not invent citations — only include papers explicitly cited in the reports."
+        )
+        base_system = (
+            f"You are a synthesis engine for the {phase} phase of a multi-agent "
+            "physics research assistant. Your job is to produce a single coherent "
+            "synthesis of the provided agent reports, highlighting the strongest "
+            "hypotheses or conclusions. Be concise and precise."
+            + (references_requirement if phase != "proposals" else "")
         )
 
         # Anti-consensus instruction for scientific phases only (not proposals,
@@ -126,7 +129,7 @@ class DebateEngine:
         response = await asyncio.to_thread(
             self._client.messages.create,
             model=self._config.debate_model,
-            max_tokens=4096,
+            max_tokens=8192,
             system=system,
             messages=[{"role": "user", "content": user_content}],
         )
