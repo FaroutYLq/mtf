@@ -2,23 +2,17 @@
 
 from __future__ import annotations
 
+import asyncio
+import json
+
 import arxiv
 import claude_agent_sdk as sdk
 
 
-def make_arxiv_search_tool() -> sdk.Tool:
-    """Return a claude-agent-sdk Tool that searches arxiv."""
+def make_arxiv_search_tool() -> sdk.SdkMcpTool:
+    """Return a claude-agent-sdk SdkMcpTool that searches arxiv."""
 
-    def arxiv_search(query: str, max_results: int = 5) -> list[dict[str, str]]:
-        """Search arxiv for papers matching *query*.
-
-        Args:
-            query: Search string (supports arxiv advanced query syntax).
-            max_results: Maximum number of results to return (default 5, max 20).
-
-        Returns:
-            List of dicts with keys: title, authors, summary, url, published.
-        """
+    def _arxiv_search(query: str, max_results: int = 5) -> list[dict[str, str]]:
         max_results = min(max_results, 20)
         client = arxiv.Client()
         search = arxiv.Search(query=query, max_results=max_results)
@@ -35,4 +29,27 @@ def make_arxiv_search_tool() -> sdk.Tool:
             )
         return results
 
-    return sdk.Tool.from_function(arxiv_search)
+    async def _handler(args: dict) -> dict:
+        result = await asyncio.to_thread(
+            _arxiv_search,
+            query=args.get("query", ""),
+            max_results=int(args.get("max_results", 5)),
+        )
+        return {"content": [{"type": "text", "text": json.dumps(result)}]}
+
+    return sdk.SdkMcpTool(
+        name="arxiv_search",
+        description=(
+            "Search arxiv for papers matching a query. "
+            "Returns title, authors, summary, url, and published date."
+        ),
+        input_schema={
+            "type": "object",
+            "properties": {
+                "query": {"type": "string", "description": "Search string (supports arxiv advanced query syntax)."},
+                "max_results": {"type": "integer", "description": "Maximum number of results to return (default 5, max 20)."},
+            },
+            "required": ["query"],
+        },
+        handler=_handler,
+    )
